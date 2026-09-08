@@ -1,0 +1,16 @@
+{
+  "name": "Blaze Escrow-Link",
+  "short_name": "BlazeEscrow",
+  "description": "P2P Social Commerce Trust Engine built natively around Ecobank Blaze.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0A0A0A",
+  "theme_color": "#0A0A0A",
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "64x64 32x32 24x24 16x16",
+      "type": "image/x-icon"
+    }
+  ]
+}
