@@ -117,11 +117,7 @@ export default function EscrowPaymentPage() {
   }
 
   if (!tx) {
-    return (
-      <div className="min-h-screen bg-[#F8FAFC] flex items-center justify-center text-slate-500 text-xs font-medium">
-        Loading Escrow Contract...
-      </div>
-    );
+    return <LoadingScreen message="Loading Escrow Contract..." subtext="Retrieving verified seller terms & escrow vault details" />;
   }
 
   const isSeller = !!user && user.id === tx.seller_id;

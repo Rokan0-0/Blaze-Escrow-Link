@@ -7,6 +7,7 @@ import { Navbar } from '@/components/layout/Navbar';
 import { Footer } from '@/components/layout/Footer';
 import { ShareCardModal } from '@/components/escrow/ShareCardModal';
 import { TrustBadge } from '@/components/trust/TrustBadge';
+import { LoadingScreen } from '@/components/ui/LoadingScreen';
 import { formatNaira, formatDate, calculateEscrowFee } from '@/lib/formatters';
 import { mockStore } from '@/lib/mock/store';
 import { EscrowTransaction, Withdrawal } from '@/lib/mock/types';
@@ -98,13 +99,7 @@ export default function DashboardPage() {
   }, [user?.id]);
 
   if (isLoading) {
-    return (
-      <div className="min-h-screen bg-[#F8FAFC] flex flex-col justify-center items-center text-center p-4">
-        <div className="text-xs font-mono font-bold text-[#006B3F] animate-pulse">
-          Loading Merchant Dashboard...
-        </div>
-      </div>
-    );
+    return <LoadingScreen message="Loading Merchant Dashboard..." subtext="Syncing your escrow transactions & wallet balance" />;
   }
 
   if (!user) {
