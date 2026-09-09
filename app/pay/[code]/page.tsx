@@ -12,6 +12,7 @@ import { Navbar } from '@/components/layout/Navbar';
 import { Footer } from '@/components/layout/Footer';
 import { StateProgressBar } from '@/components/escrow/StateProgressBar';
 import { TrustBadge } from '@/components/trust/TrustBadge';
+import { LoadingScreen } from '@/components/ui/LoadingScreen';
 import confetti from 'canvas-confetti';
 import {
   ShieldCheck,
