@@ -24,7 +24,11 @@ export const metadata: Metadata = {
     title: "Blaze Escrow",
   },
   icons: {
-    icon: "/favicon.ico",
+    icon: [
+      { url: "/icon.svg", type: "image/svg+xml" },
+    ],
+    shortcut: "/icon.svg",
+    apple: "/icon.svg",
   },
 };
 
@@ -33,7 +37,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
-  themeColor: "#FFFFFF",
+  themeColor: "#006B3F",
 };
 
 export default function RootLayout({

@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32" fill="none">
+  <defs>
+    <linearGradient id="bgGrad" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#006B3F"/>
+      <stop offset="100%" stop-color="#004D2D"/>
+    </linearGradient>
+    <linearGradient id="boltGrad" x1="10" y1="4" x2="22" y2="28" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#FBBF24"/>
+      <stop offset="100%" stop-color="#F59E0B"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background Squircle -->
+  <rect x="0" y="0" width="32" height="32" rx="8" fill="url(#bgGrad)"/>
+  
+  <!-- Subtle Inner Border -->
+  <rect x="0.75" y="0.75" width="30.5" height="30.5" rx="7.25" stroke="#10B981" stroke-opacity="0.3" stroke-width="1.5"/>
+
+  <!-- Shield Backdrop Accent -->
+  <path d="M16 5L24 8V15C24 20.5 20.5 25.5 16 27C11.5 25.5 8 20.5 8 15V8L16 5Z" fill="#004D2D" opacity="0.5"/>
+
+  <!-- Lightning Bolt (Blaze Escrow Logo Mark) -->
+  <path d="M17.5 5L9 16.5H15.5L14.5 27L23 15.5H16.5L17.5 5Z" fill="url(#boltGrad)" stroke="#FFFFFF" stroke-width="0.75" stroke-linejoin="round"/>
+</svg>
