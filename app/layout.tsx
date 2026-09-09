@@ -15,13 +15,39 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Blaze Escrow-Link | P2P Social Commerce Trust Engine",
+  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || "https://blaze-escrow-link.vercel.app"),
+  title: {
+    default: "Blaze Escrow-Link | P2P Social Commerce Trust Engine",
+    template: "%s | Blaze Escrow-Link",
+  },
   description: "Micro-escrow engine built natively around Ecobank Blaze. Buy and sell safely on WhatsApp, Instagram, and campus markets with full financial protection.",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
     title: "Blaze Escrow",
+  },
+  openGraph: {
+    title: "Blaze Escrow-Link | P2P Social Commerce Trust Engine",
+    description: "Micro-escrow engine built natively around Ecobank Blaze. Buy and sell safely on WhatsApp, Instagram, and campus markets with full financial protection.",
+    url: "https://blaze-escrow-link.vercel.app",
+    siteName: "Blaze Escrow-Link",
+    images: [
+      {
+        url: "/og-image.png",
+        width: 1200,
+        height: 630,
+        alt: "Blaze Escrow-Link - P2P Social Commerce Trust Engine",
+      },
+    ],
+    locale: "en_NG",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Blaze Escrow-Link | P2P Social Commerce Trust Engine",
+    description: "Micro-escrow engine built natively around Ecobank Blaze. Buy and sell safely on WhatsApp, Instagram, and campus markets.",
+    images: ["/og-image.png"],
   },
   icons: {
     icon: [
