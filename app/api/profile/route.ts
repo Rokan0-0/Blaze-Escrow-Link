@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST /api/profile — persist user profile to Supabase Postgres
+// POST /api/profile — persist profile to Supabase Postgres without overwriting live balance/stats
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
@@ -28,6 +28,24 @@ export async function POST(request: NextRequest) {
     if (!profile?.id || !profile?.phone) {
       return NextResponse.json({ error: 'profile.id and profile.phone required' }, { status: 400 });
     }
+
+    const existing = await ServerDb.getProfileById(profile.id);
+    if (existing) {
+      // Preserve live balance, trades, volume, and trust metrics from DB
+      const merged: Profile = {
+        ...profile,
+        simulated_balance: existing.simulated_balance,
+        completed_trades: existing.completed_trades,
+        disputed_trades: existing.disputed_trades,
+        total_volume: existing.total_volume,
+        trust_score: existing.trust_score,
+        trust_tier: existing.trust_tier,
+        credit_limit: existing.credit_limit,
+      };
+      const saved = await ServerDb.saveProfile(merged);
+      return NextResponse.json({ success: true, profile: saved });
+    }
+
     const saved = await ServerDb.saveProfile(profile);
     return NextResponse.json({ success: true, profile: saved });
   } catch (error: any) {

@@ -126,13 +126,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       };
     }
 
-    // Persist profile to Supabase Postgres
+    // Persist profile to Supabase Postgres (will preserve live fields if user exists)
     try {
-      await fetch('/api/profile', {
+      const res = await fetch('/api/profile', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ profile: targetUser }),
       });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.profile) targetUser = data.profile;
+      }
     } catch {}
 
     mockStore.saveProfile(targetUser);
@@ -146,26 +150,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return { success: true, user: targetUser };
   };
 
-  const switchDemoUser = (role: 'seller' | 'buyer' | 'admin') => {
+  const switchDemoUser = async (role: 'seller' | 'buyer' | 'admin') => {
     let target = MOCK_SELLER;
     if (role === 'buyer') target = MOCK_BUYER;
     if (role === 'admin') target = MOCK_ADMIN;
-
-    setUser(target);
-    mockStore.saveProfile(target);
 
     if (typeof window !== 'undefined') {
       localStorage.setItem('blaze_active_user_id', target.id);
     }
 
-    // Sync profile to Supabase to make sure DB has it
+    try {
+      const res = await fetch(`/api/profile?user_id=${encodeURIComponent(target.id)}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.profile) {
+          setUser(data.profile);
+          mockStore.saveProfile(data.profile);
+          return;
+        }
+      }
+    } catch {}
+
+    setUser(target);
+    mockStore.saveProfile(target);
     fetch('/api/profile', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ profile: target }),
     }).catch(() => {});
-
-    setTimeout(() => refreshProfile(), 100);
   };
 
   const logout = () => {
