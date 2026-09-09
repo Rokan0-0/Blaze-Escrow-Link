@@ -508,107 +508,202 @@ export default function DashboardPage() {
             </button>
           </div>
 
-          <div className="overflow-x-auto">
-            {historyTab === 'ESCROW' ? (
-              <table className="w-full text-left text-xs min-w-[600px]">
-                <thead>
-                  <tr className="border-b border-slate-100 text-slate-500 font-bold uppercase text-[10px]">
-                    <th className="py-2.5 px-3">Escrow Code</th>
-                    <th className="py-2.5 px-3">Item Title</th>
-                    <th className="py-2.5 px-3">Amount</th>
-                    <th className="py-2.5 px-3">State</th>
-                    <th className="py-2.5 px-3">Date</th>
-                    <th className="py-2.5 px-3 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 font-medium">
-                  {transactions.length === 0 ? (
-                    <tr>
-                      <td colSpan={6} className="py-8 text-center text-slate-400">
-                        No escrow contracts created yet.
-                      </td>
+          {/* TAB 1: ESCROW CONTRACTS */}
+          {historyTab === 'ESCROW' && (
+            <>
+              {/* Desktop Table View */}
+              <div className="hidden md:block overflow-x-auto">
+                <table className="w-full text-left text-xs min-w-[600px]">
+                  <thead>
+                    <tr className="border-b border-slate-100 text-slate-500 font-bold uppercase text-[10px]">
+                      <th className="py-2.5 px-3">Escrow Code</th>
+                      <th className="py-2.5 px-3">Item Title</th>
+                      <th className="py-2.5 px-3">Amount</th>
+                      <th className="py-2.5 px-3">State</th>
+                      <th className="py-2.5 px-3">Date</th>
+                      <th className="py-2.5 px-3 text-right">Actions</th>
                     </tr>
-                  ) : (
-                    transactions.map((t) => (
-                      <tr key={t.id} className="hover:bg-slate-50/80 transition-colors">
-                        <td className="py-2.5 px-3 font-mono text-[#006B3F] font-bold text-[11px]">{t.code}</td>
-                        <td className="py-2.5 px-3 font-bold text-slate-900 max-w-xs truncate">{t.title}</td>
-                        <td className="py-2.5 px-3 font-mono font-bold text-slate-900">{formatNaira(t.amount)}</td>
-                        <td className="py-2.5 px-3">
-                          <span className="px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-mono font-bold uppercase border bg-slate-100 text-slate-700 border-slate-200">
-                            {t.state}
-                          </span>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 font-medium">
+                    {transactions.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="py-8 text-center text-slate-400">
+                          No escrow contracts created yet.
                         </td>
-                        <td className="py-2.5 px-3 text-slate-500 text-[11px]">{formatDate(t.created_at)}</td>
-                        <td className="py-2.5 px-3 text-right space-x-2">
+                      </tr>
+                    ) : (
+                      transactions.map((t) => (
+                        <tr key={t.id} className="hover:bg-slate-50/80 transition-colors">
+                          <td className="py-2.5 px-3 font-mono text-[#006B3F] font-bold text-[11px]">{t.code}</td>
+                          <td className="py-2.5 px-3 font-bold text-slate-900 max-w-xs truncate">{t.title}</td>
+                          <td className="py-2.5 px-3 font-mono font-bold text-slate-900">{formatNaira(t.amount)}</td>
+                          <td className="py-2.5 px-3">
+                            <span className="px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-mono font-bold uppercase border bg-slate-100 text-slate-700 border-slate-200">
+                              {t.state}
+                            </span>
+                          </td>
+                          <td className="py-2.5 px-3 text-slate-500 text-[11px]">{formatDate(t.created_at)}</td>
+                          <td className="py-2.5 px-3 text-right space-x-2">
+                            <button
+                              onClick={() => setActiveShareTx(t)}
+                              className="text-xs text-[#006B3F] hover:underline font-bold inline-flex items-center gap-1"
+                            >
+                              <Share2 className="w-3.5 h-3.5" /> Share Card
+                            </button>
+                            <Link
+                              href={`/pay/${encodeURIComponent(t.code)}`}
+                              className="text-xs text-blue-600 hover:underline font-bold"
+                            >
+                              View Contract
+                            </Link>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Mobile Card View */}
+              <div className="md:hidden space-y-3">
+                {transactions.length === 0 ? (
+                  <div className="p-8 text-center text-slate-400 text-xs">
+                    No escrow contracts created yet.
+                  </div>
+                ) : (
+                  transactions.map((t) => (
+                    <div key={t.id} className="bg-slate-50/80 border border-slate-200 rounded-2xl p-3.5 space-y-2.5 shadow-2xs">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-mono text-[#006B3F] font-extrabold text-xs">{t.code}</span>
+                        <span className="px-2 py-0.5 rounded-full text-[9px] font-mono font-bold uppercase border bg-white text-slate-700 border-slate-200">
+                          {t.state}
+                        </span>
+                      </div>
+
+                      <div>
+                        <h4 className="font-bold text-slate-900 text-xs truncate">{t.title}</h4>
+                        <div className="text-[#006B3F] font-mono font-extrabold text-sm mt-0.5">
+                          {formatNaira(t.amount)}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between pt-2 border-t border-slate-200/70 text-[11px]">
+                        <span className="text-slate-400 font-mono">{formatDate(t.created_at)}</span>
+                        <div className="flex items-center gap-2">
                           <button
                             onClick={() => setActiveShareTx(t)}
-                            className="text-xs text-[#006B3F] hover:underline font-bold inline-flex items-center gap-1"
+                            className="px-2.5 py-1 rounded-lg bg-[#25D366] text-white font-extrabold text-[11px] inline-flex items-center gap-1 shadow-2xs"
                           >
-                            <Share2 className="w-3.5 h-3.5" /> Share Card
+                            <Share2 className="w-3 h-3" /> Share
                           </button>
                           <Link
                             href={`/pay/${encodeURIComponent(t.code)}`}
-                            className="text-xs text-blue-600 hover:underline font-bold"
+                            className="px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 font-bold text-[11px] inline-flex items-center gap-1"
                           >
-                            View Contract
+                            View
                           </Link>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            ) : (
-              <table className="w-full text-left text-xs min-w-[650px]">
-                <thead>
-                  <tr className="border-b border-slate-100 text-slate-500 font-bold uppercase text-[10px]">
-                    <th className="py-2.5 px-3">Payout Ref</th>
-                    <th className="py-2.5 px-3">Destination Bank & Account</th>
-                    <th className="py-2.5 px-3">Beneficiary</th>
-                    <th className="py-2.5 px-3">Amount</th>
-                    <th className="py-2.5 px-3">Status</th>
-                    <th className="py-2.5 px-3">Date & Time</th>
-                    <th className="py-2.5 px-3 text-right">Receipt</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 font-medium">
-                  {withdrawals.length === 0 ? (
-                    <tr>
-                      <td colSpan={7} className="py-8 text-center text-slate-400">
-                        No bank payouts processed yet. Click &quot;Bank Payout&quot; to withdraw available funds.
-                      </td>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </>
+          )}
+
+          {/* TAB 2: BANK PAYOUT HISTORY */}
+          {historyTab === 'PAYOUTS' && (
+            <>
+              {/* Desktop Table View */}
+              <div className="hidden md:block overflow-x-auto">
+                <table className="w-full text-left text-xs min-w-[650px]">
+                  <thead>
+                    <tr className="border-b border-slate-100 text-slate-500 font-bold uppercase text-[10px]">
+                      <th className="py-2.5 px-3">Payout Ref</th>
+                      <th className="py-2.5 px-3">Destination Bank & Account</th>
+                      <th className="py-2.5 px-3">Beneficiary</th>
+                      <th className="py-2.5 px-3">Amount</th>
+                      <th className="py-2.5 px-3">Status</th>
+                      <th className="py-2.5 px-3">Date & Time</th>
+                      <th className="py-2.5 px-3 text-right">Receipt</th>
                     </tr>
-                  ) : (
-                    withdrawals.map((w) => (
-                      <tr key={w.id} className="hover:bg-slate-50/80 transition-colors">
-                        <td className="py-2.5 px-3 font-mono text-amber-700 font-bold text-[11px]">{w.reference}</td>
-                        <td className="py-2.5 px-3 font-bold text-slate-900">
-                          {w.bank_name} • {w.account_number}
-                        </td>
-                        <td className="py-2.5 px-3 text-slate-700">{w.account_name}</td>
-                        <td className="py-2.5 px-3 font-mono font-bold text-[#006B3F]">{formatNaira(w.amount)}</td>
-                        <td className="py-2.5 px-3">
-                          <span className="px-2 py-0.5 rounded-full text-[9px] font-mono font-bold uppercase bg-emerald-100 text-[#006B3F] border border-emerald-200">
-                            {w.status}
-                          </span>
-                        </td>
-                        <td className="py-2.5 px-3 text-slate-500 text-[11px]">{formatDate(w.created_at)}</td>
-                        <td className="py-2.5 px-3 text-right">
-                          <button
-                            onClick={() => setActiveReceipt(w)}
-                            className="text-xs text-[#006B3F] hover:underline font-bold inline-flex items-center gap-1"
-                          >
-                            <FileText className="w-3.5 h-3.5" /> View Receipt
-                          </button>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 font-medium">
+                    {withdrawals.length === 0 ? (
+                      <tr>
+                        <td colSpan={7} className="py-8 text-center text-slate-400">
+                          No bank payouts processed yet. Click &quot;Bank Payout&quot; to withdraw available funds.
                         </td>
                       </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            )}
-          </div>
+                    ) : (
+                      withdrawals.map((w) => (
+                        <tr key={w.id} className="hover:bg-slate-50/80 transition-colors">
+                          <td className="py-2.5 px-3 font-mono text-amber-700 font-bold text-[11px]">{w.reference}</td>
+                          <td className="py-2.5 px-3 font-bold text-slate-900">
+                            {w.bank_name} • {w.account_number}
+                          </td>
+                          <td className="py-2.5 px-3 text-slate-700">{w.account_name}</td>
+                          <td className="py-2.5 px-3 font-mono font-bold text-[#006B3F]">{formatNaira(w.amount)}</td>
+                          <td className="py-2.5 px-3">
+                            <span className="px-2 py-0.5 rounded-full text-[9px] font-mono font-bold uppercase bg-emerald-100 text-[#006B3F] border border-emerald-200">
+                              {w.status}
+                            </span>
+                          </td>
+                          <td className="py-2.5 px-3 text-slate-500 text-[11px]">{formatDate(w.created_at)}</td>
+                          <td className="py-2.5 px-3 text-right">
+                            <button
+                              onClick={() => setActiveReceipt(w)}
+                              className="text-xs text-[#006B3F] hover:underline font-bold inline-flex items-center gap-1"
+                            >
+                              <FileText className="w-3.5 h-3.5" /> View Receipt
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Mobile Card View */}
+              <div className="md:hidden space-y-3">
+                {withdrawals.length === 0 ? (
+                  <div className="p-8 text-center text-slate-400 text-xs">
+                    No bank payouts processed yet. Click &quot;Bank Payout&quot; to withdraw available funds.
+                  </div>
+                ) : (
+                  withdrawals.map((w) => (
+                    <div key={w.id} className="bg-slate-50/80 border border-slate-200 rounded-2xl p-3.5 space-y-2.5 shadow-2xs">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-mono text-amber-800 font-extrabold text-xs">{w.reference}</span>
+                        <span className="px-2 py-0.5 rounded-full text-[9px] font-mono font-bold uppercase bg-emerald-100 text-[#006B3F] border border-emerald-200">
+                          {w.status}
+                        </span>
+                      </div>
+
+                      <div>
+                        <div className="font-bold text-slate-900 text-xs">{w.bank_name} • {w.account_number}</div>
+                        <div className="text-slate-500 text-[11px] mt-0.5 font-medium">{w.account_name}</div>
+                        <div className="text-[#006B3F] font-mono font-extrabold text-sm mt-1">
+                          {formatNaira(w.amount)}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between pt-2 border-t border-slate-200/70 text-[11px]">
+                        <span className="text-slate-400 font-mono">{formatDate(w.created_at)}</span>
+                        <button
+                          onClick={() => setActiveReceipt(w)}
+                          className="px-3 py-1 rounded-lg bg-emerald-50 text-[#006B3F] border border-emerald-200 font-extrabold text-[11px] inline-flex items-center gap-1 shadow-2xs"
+                        >
+                          <FileText className="w-3.5 h-3.5" /> View Receipt
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </>
+          )}
         </div>
       </main>
 

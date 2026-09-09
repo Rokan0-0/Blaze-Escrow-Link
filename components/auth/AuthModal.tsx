@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth/AuthContext';
-import { X, Phone, KeyRound, ArrowRight, CheckCircle2, ShieldCheck, User, Store, ShoppingBag } from 'lucide-react';
+import { X, Phone, KeyRound, ArrowRight, ShieldCheck, User } from 'lucide-react';
 
 export function AuthModal() {
   const router = useRouter();
@@ -13,7 +13,6 @@ export function AuthModal() {
 
   const [phone, setPhone] = useState('+2348000000001');
   const [fullName, setFullName] = useState('');
-  const [role, setRole] = useState<'seller' | 'buyer' | 'both'>('seller');
   const [ecobankAccount, setEcobankAccount] = useState('');
   const [otp, setOtp] = useState('000000');
   const [loading, setLoading] = useState(false);
@@ -38,14 +37,9 @@ export function AuthModal() {
 
     try {
       const nameToUse = authMode === 'SIGN_UP' ? fullName : (phone.includes('0001') ? 'Amina Bello' : 'Tunde Bakare');
-      const res = await verifyOtp(phone, otp, nameToUse, role);
+      const res = await verifyOtp(phone, otp, nameToUse, 'both');
       if (res.success) {
-        // Redirect directly to Dashboard (or Orders for buyers)
-        if (role === 'buyer') {
-          router.push('/orders');
-        } else {
-          router.push('/dashboard');
-        }
+        router.push('/dashboard');
       } else {
         setError(res.error || 'Verification failed');
       }
@@ -62,29 +56,29 @@ export function AuthModal() {
   };
 
   return (
-    <div className="fixed inset-0 z-50 glass-modal flex items-center justify-center p-4">
-      <div className="bg-white border border-slate-200 rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-5 relative overflow-hidden">
+    <div className="fixed inset-0 z-50 glass-modal flex items-center justify-center p-3.5 sm:p-4">
+      <div className="bg-white border border-slate-200 rounded-3xl max-w-md w-full p-5 sm:p-6 shadow-2xl space-y-4 sm:space-y-5 relative overflow-hidden">
         {/* Close Button */}
         <button
           onClick={closeAuthModal}
-          className="absolute top-4 right-4 p-2 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-900 transition-all"
+          className="absolute top-4 right-4 p-1.5 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-900 transition-all"
         >
-          <X className="w-5 h-5" />
+          <X className="w-4 h-4" />
         </button>
 
-        {/* Branded Header Icon & Title */}
-        <div className="flex flex-col items-center text-center space-y-2 pt-2">
-          <div className="w-12 h-12 rounded-2xl bg-[#006B3F] text-white flex items-center justify-center font-bold text-xl shadow-md border border-[#005432]">
-            <ShieldCheck className="w-6 h-6" />
+        {/* Header Icon & Title */}
+        <div className="flex flex-col items-center text-center space-y-1.5 pt-1">
+          <div className="w-11 h-11 rounded-2xl bg-[#006B3F] text-white flex items-center justify-center font-bold text-lg shadow-md border border-[#005432]">
+            <ShieldCheck className="w-5 h-5" />
           </div>
-          <h3 className="text-xl font-extrabold text-slate-900 tracking-tight">
+          <h3 className="text-lg font-extrabold text-slate-900 tracking-tight">
             {step === 'OTP'
               ? 'Verify Mobile OTP'
               : authMode === 'SIGN_IN'
               ? 'Welcome Back'
               : 'Create Your Account'}
           </h3>
-          <p className="text-xs text-slate-500 font-medium">
+          <p className="text-[11px] sm:text-xs text-slate-500 font-medium">
             {step === 'OTP'
               ? `Verification code sent to ${phone}`
               : 'Ecobank Blaze P2P Social Commerce Protection'}
@@ -93,8 +87,8 @@ export function AuthModal() {
 
         {/* Step 1: DETAILS */}
         {step === 'DETAILS' && (
-          <div className="space-y-4">
-            {/* Mode Switcher Tabs: Sign In vs Sign Up */}
+          <div className="space-y-3.5">
+            {/* Mode Switcher Tabs */}
             <div className="grid grid-cols-2 p-1 rounded-2xl bg-slate-100 text-xs font-bold">
               <button
                 type="button"
@@ -104,7 +98,7 @@ export function AuthModal() {
                 }}
                 className={`py-2 rounded-xl transition-all ${
                   authMode === 'SIGN_UP'
-                    ? 'bg-white text-[#006B3F] shadow-xs'
+                    ? 'bg-white text-[#006B3F] shadow-2xs'
                     : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
@@ -119,7 +113,7 @@ export function AuthModal() {
                 }}
                 className={`py-2 rounded-xl transition-all ${
                   authMode === 'SIGN_IN'
-                    ? 'bg-white text-[#006B3F] shadow-xs'
+                    ? 'bg-white text-[#006B3F] shadow-2xs'
                     : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
@@ -127,60 +121,22 @@ export function AuthModal() {
               </button>
             </div>
 
-            <form onSubmit={handleDetailsSubmit} className="space-y-3.5 text-xs">
-              {/* SIGN UP specific fields */}
+            <form onSubmit={handleDetailsSubmit} className="space-y-3 text-xs">
               {authMode === 'SIGN_UP' && (
-                <>
-                  <div>
-                    <label className="block text-slate-700 font-bold mb-1">Full Name</label>
-                    <div className="relative">
-                      <User className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
-                      <input
-                        type="text"
-                        required
-                        value={fullName}
-                        onChange={(e) => setFullName(e.target.value)}
-                        placeholder="e.g. Amina Bello"
-                        className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-3.5 py-2.5 text-slate-900 placeholder-slate-400 focus:outline-none focus:border-[#006B3F] font-medium"
-                      />
-                    </div>
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">Full Name</label>
+                  <div className="relative">
+                    <User className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
+                    <input
+                      type="text"
+                      required
+                      value={fullName}
+                      onChange={(e) => setFullName(e.target.value)}
+                      placeholder="e.g. Amina Bello"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-3.5 py-2.5 text-slate-900 placeholder-slate-400 focus:outline-none focus:border-[#006B3F] font-medium text-xs"
+                    />
                   </div>
-
-                  <div>
-                    <label className="block text-slate-700 font-bold mb-1">Account Role</label>
-                    <div className="grid grid-cols-2 gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setRole('seller')}
-                        className={`p-2.5 rounded-xl border text-left flex items-center gap-2 transition-all ${
-                          role === 'seller'
-                            ? 'bg-emerald-50 border-[#006B3F] text-[#006B3F] font-bold'
-                            : 'bg-slate-50 border-slate-200 text-slate-600'
-                        }`}
-                      >
-                        <Store className="w-4 h-4 text-[#006B3F]" />
-                        <div>
-                          <div className="text-xs">Merchant / Seller</div>
-                        </div>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => setRole('buyer')}
-                        className={`p-2.5 rounded-xl border text-left flex items-center gap-2 transition-all ${
-                          role === 'buyer'
-                            ? 'bg-blue-50 border-blue-600 text-blue-700 font-bold'
-                            : 'bg-slate-50 border-slate-200 text-slate-600'
-                        }`}
-                      >
-                        <ShoppingBag className="w-4 h-4 text-blue-600" />
-                        <div>
-                          <div className="text-xs">Buyer / Customer</div>
-                        </div>
-                      </button>
-                    </div>
-                  </div>
-                </>
+                </div>
               )}
 
               {/* Shared Phone Field */}
@@ -194,23 +150,23 @@ export function AuthModal() {
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
                     placeholder="+2348000000001"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-3.5 py-2.5 text-slate-900 font-mono focus:outline-none focus:border-[#006B3F] font-bold"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-3.5 py-2.5 text-slate-900 font-mono focus:outline-none focus:border-[#006B3F] font-bold text-xs"
                   />
                 </div>
               </div>
 
-              {/* Optional Ecobank Account in Sign Up */}
+              {/* Optional Ecobank Account */}
               {authMode === 'SIGN_UP' && (
                 <div>
                   <label className="block text-slate-700 font-bold mb-1">
-                    Ecobank Account Number <span className="text-slate-400 font-normal">(Optional for +15 Trust Points)</span>
+                    Ecobank Account Number <span className="text-slate-400 font-normal">(Optional for +15 Trust)</span>
                   </label>
                   <input
                     type="text"
                     value={ecobankAccount}
                     onChange={(e) => setEcobankAccount(e.target.value)}
                     placeholder="e.g. 3290192841"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-900 font-mono placeholder-slate-400 focus:outline-none focus:border-[#006B3F] font-medium"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-900 font-mono placeholder-slate-400 focus:outline-none focus:border-[#006B3F] font-medium text-xs"
                   />
                 </div>
               )}
@@ -223,7 +179,7 @@ export function AuthModal() {
 
               <button
                 type="submit"
-                className="w-full bg-[#006B3F] hover:bg-[#005432] text-white font-extrabold py-3 px-4 rounded-xl text-xs transition-all flex items-center justify-center gap-2 shadow-lg"
+                className="w-full bg-[#006B3F] hover:bg-[#005432] text-white font-extrabold py-3 px-4 rounded-xl text-xs transition-all flex items-center justify-center gap-2 shadow-md mt-1"
               >
                 {authMode === 'SIGN_UP' ? 'Create Account & Send Code' : 'Send Verification SMS'}
                 <ArrowRight className="w-4 h-4" />
@@ -234,7 +190,7 @@ export function AuthModal() {
 
         {/* Step 2: OTP */}
         {step === 'OTP' && (
-          <form onSubmit={handleOtpSubmit} className="space-y-4 text-xs">
+          <form onSubmit={handleOtpSubmit} className="space-y-3.5 text-xs">
             <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3 text-slate-600 text-xs text-center font-medium">
               Enter 6-digit SMS verification code sent to <span className="font-mono font-bold text-slate-900">{phone}</span>.
               <div className="mt-1 text-[11px] text-emerald-700 font-bold">
@@ -245,7 +201,7 @@ export function AuthModal() {
             <div>
               <label className="block text-slate-700 font-bold mb-1 text-center">Enter 6-Digit OTP Code</label>
               <div className="relative">
-                <KeyRound className="w-5 h-5 text-slate-400 absolute left-3.5 top-3" />
+                <KeyRound className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
                 <input
                   type="text"
                   maxLength={6}
@@ -253,7 +209,7 @@ export function AuthModal() {
                   value={otp}
                   onChange={(e) => setOtp(e.target.value)}
                   placeholder="000000"
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-12 pr-4 py-3 text-center text-xl font-mono tracking-widest text-slate-900 focus:outline-none focus:border-[#006B3F] font-bold"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-2.5 text-center text-lg font-mono tracking-widest text-slate-900 focus:outline-none focus:border-[#006B3F] font-bold"
                 />
               </div>
             </div>
@@ -267,7 +223,7 @@ export function AuthModal() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-[#006B3F] hover:bg-[#005432] text-white font-extrabold py-3 px-4 rounded-xl text-xs transition-all flex items-center justify-center gap-2 shadow-lg disabled:opacity-50"
+              className="w-full bg-[#006B3F] hover:bg-[#005432] text-white font-extrabold py-3 px-4 rounded-xl text-xs transition-all flex items-center justify-center gap-2 shadow-md disabled:opacity-50"
             >
               {loading ? 'Verifying Session...' : 'Confirm & Complete Registration'}
               <ArrowRight className="w-4 h-4" />
