@@ -118,7 +118,7 @@ export default function EscrowPaymentPage() {
   }
 
   if (!tx) {
-    return <LoadingScreen message="Loading Escrow Contract..." subtext="Retrieving verified seller terms & escrow vault details" />;
+    return <LoadingScreen message="Loading Escrow Contract..." />;
   }
 
   const isSeller = !!user && user.id === tx.seller_id;

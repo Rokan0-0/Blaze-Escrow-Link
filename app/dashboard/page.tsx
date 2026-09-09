@@ -99,7 +99,7 @@ export default function DashboardPage() {
   }, [user?.id]);
 
   if (isLoading) {
-    return <LoadingScreen message="Loading Merchant Dashboard..." subtext="Syncing your escrow transactions & wallet balance" />;
+    return <LoadingScreen message="Loading Merchant Dashboard..." />;
   }
 
   if (!user) {
