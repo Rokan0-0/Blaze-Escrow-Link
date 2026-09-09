@@ -91,7 +91,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     otp: string,
     fullName?: string,
     role: Profile['role'] = 'both'
-  ) => {
+  ): Promise<{ success: boolean; user?: Profile; error?: string }> => {
     const formatted = formatPhone(phone);
 
     if (otp !== '000000') {
@@ -139,15 +139,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     } catch {}
 
-    mockStore.saveProfile(targetUser);
-    setUser(targetUser);
+    const finalProfile: Profile = targetUser!;
+    mockStore.saveProfile(finalProfile);
+    setUser(finalProfile);
 
     if (typeof window !== 'undefined') {
-      localStorage.setItem('blaze_active_user_id', targetUser.id);
+      localStorage.setItem('blaze_active_user_id', finalProfile.id);
     }
 
     closeAuthModal();
-    return { success: true, user: targetUser };
+    return { success: true, user: finalProfile };
   };
 
   const switchDemoUser = async (role: 'seller' | 'buyer' | 'admin') => {
