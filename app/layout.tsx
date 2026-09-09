@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/lib/auth/AuthContext";
+import { AuthModal } from "@/components/auth/AuthModal";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -19,7 +20,7 @@ export const metadata: Metadata = {
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
-    statusBarStyle: "black-translucent",
+    statusBarStyle: "default",
     title: "Blaze Escrow",
   },
   icons: {
@@ -32,7 +33,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
-  themeColor: "#0A0A0A",
+  themeColor: "#FFFFFF",
 };
 
 export default function RootLayout({
@@ -41,10 +42,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${inter.variable} ${jetbrainsMono.variable} dark h-full antialiased`}>
-      <body className="min-h-full flex flex-col bg-[#0A0A0A] text-zinc-100 selection:bg-[#006B3F] selection:text-white">
+    <html lang="en" className={`${inter.variable} ${jetbrainsMono.variable} h-full antialiased`}>
+      <body className="min-h-full flex flex-col bg-[#F8FAFC] text-slate-900 selection:bg-[#006B3F] selection:text-white">
         <AuthProvider>
           {children}
+          <AuthModal />
         </AuthProvider>
       </body>
     </html>

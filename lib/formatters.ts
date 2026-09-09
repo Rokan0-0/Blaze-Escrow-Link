@@ -3,8 +3,10 @@
  */
 
 // Formats kobo (integer) to NGN string formatted with commas e.g. 1500000 -> ₦15,000.00
-export function formatNaira(kobo: number, includeDecimals = false): string {
-  const naira = kobo / 100;
+// BUG-014: Guard against null/undefined/NaN to prevent '₦NaN' renders
+export function formatNaira(kobo: number | null | undefined, includeDecimals = false): string {
+  const safeKobo = typeof kobo === 'number' && !isNaN(kobo) ? kobo : 0;
+  const naira = safeKobo / 100;
   return new Intl.NumberFormat('en-NG', {
     style: 'currency',
     currency: 'NGN',
@@ -25,9 +27,11 @@ export function formatPhone(phone: string): string {
   return '+' + cleaned;
 }
 
-// Formats date into readable string e.g. Sep 8, 2026 • 2:30 PM
-export function formatDate(dateString: string | Date): string {
+// BUG-015: Guard against invalid/null date strings to prevent 'Invalid Date' renders
+export function formatDate(dateString: string | Date | null | undefined): string {
+  if (!dateString) return '—';
   const date = new Date(dateString);
+  if (isNaN(date.getTime())) return '—';
   return new Intl.DateTimeFormat('en-US', {
     month: 'short',
     day: 'numeric',

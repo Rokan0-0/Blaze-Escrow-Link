@@ -8,11 +8,14 @@ import { formatPhone } from '../formatters';
 interface AuthContextType {
   user: Profile | null;
   isLoading: boolean;
+  isAuthModalOpen: boolean;
+  openAuthModal: () => void;
+  closeAuthModal: () => void;
   loginWithPhone: (phone: string) => Promise<{ success: boolean; requiresOtp: boolean }>;
   verifyOtp: (phone: string, otp: string, fullName?: string, role?: Profile['role']) => Promise<{ success: boolean; user?: Profile; error?: string }>;
   switchDemoUser: (role: 'seller' | 'buyer' | 'admin') => void;
   logout: () => void;
-  refreshProfile: () => void;
+  refreshProfile: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -20,39 +23,66 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<Profile | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
 
   useEffect(() => {
-    // Check initial logged-in user from localStorage or default to Seller (Amina)
-    const savedUserId = typeof window !== 'undefined' ? localStorage.getItem('blaze_active_user_id') : null;
-    if (savedUserId) {
-      const p = mockStore.getProfileById(savedUserId);
-      if (p) {
-        setUser(p);
-      } else {
-        setUser(MOCK_SELLER);
-      }
-    } else {
-      // Default to Seller Amina for demo convenience
-      setUser(MOCK_SELLER);
+    async function initUser() {
       if (typeof window !== 'undefined') {
-        localStorage.setItem('blaze_active_user_id', MOCK_SELLER.id);
+        const savedId = localStorage.getItem('blaze_active_user_id');
+        if (savedId) {
+          try {
+            const res = await fetch(`/api/profile?user_id=${encodeURIComponent(savedId)}`);
+            if (res.ok) {
+              const data = await res.json();
+              if (data.profile) {
+                setUser(data.profile);
+                mockStore.saveProfile(data.profile);
+                setIsLoading(false);
+                return;
+              }
+            }
+          } catch {}
+
+          const profile = mockStore.getProfileById(savedId);
+          if (profile) {
+            setUser(profile);
+          } else {
+            localStorage.removeItem('blaze_active_user_id');
+            setUser(null);
+          }
+        }
       }
+      setIsLoading(false);
     }
-    setIsLoading(false);
+    initUser();
   }, []);
 
-  const refreshProfile = () => {
-    if (user) {
+  const openAuthModal = () => setIsAuthModalOpen(true);
+  const closeAuthModal = () => setIsAuthModalOpen(false);
+
+  const refreshProfile = async () => {
+    if (!user) return;
+    try {
+      const res = await fetch(`/api/profile?user_id=${encodeURIComponent(user.id)}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data.profile) {
+        const serverProfile = data.profile;
+        setUser((prev) => {
+          if (!prev) return prev;
+          mockStore.saveProfile(serverProfile);
+          return { ...prev, ...serverProfile };
+        });
+      }
+    } catch {
       const updated = mockStore.getProfileById(user.id);
       if (updated) {
-        setUser({ ...updated });
+        setUser((prev) => (prev ? { ...updated } : prev));
       }
     }
   };
 
   const loginWithPhone = async (phone: string) => {
-    const formatted = formatPhone(phone);
-    // Instant trigger OTP
     return { success: true, requiresOtp: true };
   };
 
@@ -64,19 +94,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   ) => {
     const formatted = formatPhone(phone);
 
-    // Verify OTP: Must be 000000 or 6 digits
-    if (otp !== '000000' && otp.length !== 6) {
-      return { success: false, error: 'Invalid OTP code. Use 000000 for instant bypass.' };
+    if (otp !== '000000') {
+      return { success: false, error: 'Invalid OTP. Use 000000 for instant demo access.' };
     }
 
-    let existing = mockStore.getProfileByPhone(formatted);
+    let targetUser: Profile | null = null;
 
-    if (!existing) {
-      // Auto register new user
-      existing = {
+    if (formatted === MOCK_SELLER.phone) targetUser = MOCK_SELLER;
+    else if (formatted === MOCK_BUYER.phone) targetUser = MOCK_BUYER;
+    else if (formatted === MOCK_ADMIN.phone) targetUser = MOCK_ADMIN;
+
+    if (!targetUser) {
+      targetUser = mockStore.getProfileByPhone(formatted) || null;
+    }
+
+    if (!targetUser) {
+      targetUser = {
         id: `usr_${Date.now()}_${Math.random().toString(36).substring(2, 5)}`,
         phone: formatted,
-        full_name: fullName || 'Blaze Merchant',
+        full_name: fullName || 'Blaze User',
         role: role,
         trust_score: 50,
         trust_tier: 'Silver',
@@ -88,15 +124,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         simulated_balance: 5000000,
         created_at: new Date().toISOString(),
       };
-      mockStore.saveProfile(existing);
     }
 
-    setUser(existing);
+    // Persist profile to Supabase Postgres
+    try {
+      await fetch('/api/profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ profile: targetUser }),
+      });
+    } catch {}
+
+    mockStore.saveProfile(targetUser);
+    setUser(targetUser);
+
     if (typeof window !== 'undefined') {
-      localStorage.setItem('blaze_active_user_id', existing.id);
+      localStorage.setItem('blaze_active_user_id', targetUser.id);
     }
 
-    return { success: true, user: existing };
+    closeAuthModal();
+    return { success: true, user: targetUser };
   };
 
   const switchDemoUser = (role: 'seller' | 'buyer' | 'admin') => {
@@ -104,17 +151,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (role === 'buyer') target = MOCK_BUYER;
     if (role === 'admin') target = MOCK_ADMIN;
 
-    const fresh = mockStore.getProfileById(target.id) || target;
-    setUser(fresh);
+    setUser(target);
+    mockStore.saveProfile(target);
+
     if (typeof window !== 'undefined') {
-      localStorage.setItem('blaze_active_user_id', fresh.id);
+      localStorage.setItem('blaze_active_user_id', target.id);
     }
+
+    // Sync profile to Supabase to make sure DB has it
+    fetch('/api/profile', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ profile: target }),
+    }).catch(() => {});
+
+    setTimeout(() => refreshProfile(), 100);
   };
 
   const logout = () => {
     setUser(null);
     if (typeof window !== 'undefined') {
       localStorage.removeItem('blaze_active_user_id');
+      window.location.href = '/';
     }
   };
 
@@ -123,6 +181,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       value={{
         user,
         isLoading,
+        isAuthModalOpen,
+        openAuthModal,
+        closeAuthModal,
         loginWithPhone,
         verifyOtp,
         switchDemoUser,

@@ -1,0 +1,170 @@
+{
+  "profiles": [
+    {
+      "id": "usr_seller_amina_01",
+      "phone": "+2348000000001",
+      "full_name": "Amina Bello",
+      "role": "seller",
+      "trust_score": 72,
+      "trust_tier": "Gold",
+      "completed_trades": 14,
+      "disputed_trades": 0,
+      "total_volume": 45000000,
+      "ecobank_linked": true,
+      "blaze_account": "30987654321",
+      "credit_limit": 15000000,
+      "simulated_balance": 18500000,
+      "created_at": "2026-06-11T14:50:25.707Z"
+    },
+    {
+      "id": "usr_buyer_tunde_02",
+      "phone": "+2348000000002",
+      "full_name": "Tunde Bakare",
+      "role": "buyer",
+      "trust_score": 65,
+      "trust_tier": "Gold",
+      "completed_trades": 5,
+      "disputed_trades": 1,
+      "total_volume": 12700000,
+      "ecobank_linked": false,
+      "credit_limit": 15000000,
+      "simulated_balance": 21100000,
+      "created_at": "2026-08-10T14:50:25.707Z"
+    },
+    {
+      "id": "usr_admin_ecobank_03",
+      "phone": "+2348000000003",
+      "full_name": "Ecobank Compliance Admin",
+      "role": "admin",
+      "trust_score": 100,
+      "trust_tier": "Platinum",
+      "completed_trades": 0,
+      "disputed_trades": 0,
+      "total_volume": 0,
+      "ecobank_linked": true,
+      "blaze_account": "10000000000",
+      "credit_limit": 35000000,
+      "simulated_balance": 0,
+      "created_at": "2025-09-09T14:50:25.707Z"
+    }
+  ],
+  "transactions": [
+    {
+      "id": "tx_vintage_jacket_01",
+      "code": "#escrow-vintage-denim-99a2",
+      "seller_id": "usr_seller_amina_01",
+      "seller_name": "Amina Bello",
+      "title": "Vintage Levi 90s Oversized Denim Jacket (XL)",
+      "description": "Authentic 90s oversized blue denim jacket. Grade A thrift, no tear or stain.",
+      "category": "Fashion & Apparel",
+      "amount": 1850000,
+      "fee": 13875,
+      "net_amount": 1836125,
+      "state": "CREATED",
+      "logistics": "CAMPUS_DIRECT",
+      "transfer_account": "9920194810",
+      "expires_at": "2026-09-11T14:50:25.707Z",
+      "created_at": "2026-09-09T12:50:25.707Z",
+      "updated_at": "2026-09-09T12:50:25.707Z"
+    },
+    {
+      "id": "tx_airpods_pro_02",
+      "code": "#escrow-airpods-pro-gen2-7b1c",
+      "seller_id": "usr_seller_amina_01",
+      "buyer_id": "usr_buyer_tunde_02",
+      "seller_name": "Amina Bello",
+      "buyer_name": "Tunde Bakare",
+      "title": "Apple AirPods Pro Gen 2 (MagSafe Case)",
+      "description": "Clean unit with active noise cancellation. Original USB-C cable included.",
+      "category": "Electronics",
+      "amount": 8500000,
+      "fee": 50000,
+      "net_amount": 8450000,
+      "state": "DISPATCHED",
+      "logistics": "KWIK",
+      "tracking_id": "KWK-NG-8849102",
+      "ussd_pin": "910283",
+      "payment_method": "TRANSFER",
+      "transfer_account": "9920194820",
+      "expires_at": "2026-09-10T14:50:25.707Z",
+      "dispatched_at": "2026-09-09T11:50:25.707Z",
+      "created_at": "2026-09-09T02:50:25.707Z",
+      "updated_at": "2026-09-09T11:50:25.707Z"
+    },
+    {
+      "id": "tx_macbook_keyboard_03",
+      "code": "#escrow-macbook-keyboard-3m9x",
+      "seller_id": "usr_seller_amina_01",
+      "buyer_id": "usr_buyer_tunde_02",
+      "seller_name": "Amina Bello",
+      "buyer_name": "Tunde Bakare",
+      "title": "Logitech MX Keys Mini (Space Gray)",
+      "description": "Bluetooth multi-device keyboard for Mac/Windows.",
+      "category": "Electronics",
+      "amount": 4200000,
+      "fee": 31500,
+      "net_amount": 4168500,
+      "state": "DISPUTED",
+      "logistics": "GIG",
+      "tracking_id": "GIG-LAK-90812",
+      "payment_method": "WALLET",
+      "transfer_account": "9920194830",
+      "expires_at": "2026-09-10T02:50:25.707Z",
+      "dispatched_at": "2026-09-08T14:50:25.707Z",
+      "created_at": "2026-09-07T14:50:25.707Z",
+      "updated_at": "2026-09-09T08:50:25.707Z"
+    }
+  ],
+  "disputes": [
+    {
+      "id": "disp_01",
+      "transaction_id": "tx_macbook_keyboard_03",
+      "raised_by": "usr_buyer_tunde_02",
+      "reason": "ITEM_DEFECTIVE",
+      "description": "The spacebar key requires double tap to register. Seller stated it was 100% functional.",
+      "evidence_urls": [
+        "https://images.unsplash.com/photo-1587829741301-dc798b83add3?w=600&auto=format&fit=crop&q=80"
+      ],
+      "status": "OPEN",
+      "ai_score": {
+        "recommendation": "RESOLVE_BUYER",
+        "confidence": 88,
+        "reasoning": "Buyer attached clear video showing spacebar key latency. Seller chat confirms claim of 100% working condition prior to dispatch."
+      },
+      "created_at": "2026-09-09T08:50:25.707Z"
+    }
+  ],
+  "notifications": [
+    {
+      "id": "notif_01",
+      "user_id": "usr_seller_amina_01",
+      "title": "AirPods Pro — Awaiting Delivery Confirmation",
+      "body": "Tunde Bakare has received dispatch notification for AirPods Pro Gen 2 (KWK-NG-8849102). Awaiting buyer confirmation.",
+      "type": "DISPATCH",
+      "read": false,
+      "transaction_id": "tx_airpods_pro_02",
+      "created_at": "2026-09-09T11:50:25.707Z"
+    },
+    {
+      "id": "notif_02",
+      "user_id": "usr_buyer_tunde_02",
+      "title": "Package Dispatched — Confirm When Received",
+      "body": "Amina Bello dispatched AirPods Pro Gen 2 via Kwik Delivery. Tracking: KWK-NG-8849102. USSD PIN: *329*910283#",
+      "type": "DISPATCH",
+      "read": false,
+      "transaction_id": "tx_airpods_pro_02",
+      "created_at": "2026-09-09T11:50:25.707Z"
+    },
+    {
+      "id": "notif_03",
+      "user_id": "usr_seller_amina_01",
+      "title": "Dispute Filed on Logitech Keyboard",
+      "body": "Tunde Bakare filed a dispute on #escrow-macbook-keyboard-3m9x. Escrow funds are frozen pending Ecobank Compliance review.",
+      "type": "DISPUTE",
+      "read": false,
+      "transaction_id": "tx_macbook_keyboard_03",
+      "created_at": "2026-09-09T08:50:25.707Z"
+    }
+  ],
+  "withdrawals": []
+}

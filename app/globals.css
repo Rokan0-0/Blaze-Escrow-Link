@@ -1,14 +1,15 @@
 @import "tailwindcss";
 
 :root {
-  --background: #0A0A0A;
-  --foreground: #F4F4F5;
-  --card: #111111;
-  --card-border: #2A2A2A;
-  --surface: #1A1A1A;
+  --background: #F8FAFC;
+  --foreground: #0F172A;
+  --card: #FFFFFF;
+  --card-border: #E2E8F0;
+  --surface: #F1F5F9;
   --brand-green: #006B3F;
-  --brand-green-light: #00874E;
-  --brand-amber: #F59E0B;
+  --brand-green-hover: #005432;
+  --brand-green-light: #F0FDF4;
+  --brand-amber: #D97706;
   --brand-red: #DC2626;
   --brand-blue: #2563EB;
 }
@@ -21,30 +22,36 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Custom Utilities & Scrollbars */
+/* Custom Scrollbars */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #0A0A0A;
+  background: #F8FAFC;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #2A2A2A;
+  background: #CBD5E1;
   border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #3F3F46;
+  background: #94A3B8;
 }
 
 .mono-code {
   font-family: var(--font-mono), monospace;
 }
 
-/* Animations */
+/* Glassmorphism & Animations */
+.glass-modal {
+  background: rgba(15, 23, 42, 0.6);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
 @keyframes pulse-subtle {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.6; }

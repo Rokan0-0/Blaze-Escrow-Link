@@ -7,14 +7,14 @@ export const MOCK_SELLER: Profile = {
   full_name: 'Amina Bello',
   role: 'seller',
   trust_score: 72,
-  trust_tier: 'Silver',
+  trust_tier: 'Gold', // BUG-017: score 72 ≥ 60 = Gold tier per calculateTrustTier
   completed_trades: 14,
   disputed_trades: 0,
   total_volume: 45000000, // 450,000 NGN
   ecobank_linked: true,
   blaze_account: '30987654321',
-  credit_limit: 5000000, // 50,000 NGN
-  simulated_balance: 18500000, // 185,000 NGN
+  credit_limit: 15000000, // Gold tier = ₦150,000 credit limit
+  simulated_balance: 18500000, // 185,000 NGN current wallet
   created_at: new Date(Date.now() - 90 * 86400000).toISOString(),
 };
 
@@ -24,14 +24,16 @@ export const MOCK_BUYER: Profile = {
   full_name: 'Tunde Bakare',
   role: 'buyer',
   trust_score: 65,
-  trust_tier: 'Silver',
+  trust_tier: 'Gold', // BUG-018: score 65 ≥ 60 = Gold tier per calculateTrustTier
   completed_trades: 5,
-  disputed_trades: 0,
-  total_volume: 12000000, // 120,000 NGN
+  disputed_trades: 1, // has one open dispute (Keyboard)
+  total_volume: 12700000, // 127,000 NGN (AirPods 85k + Keyboard 42k)
   ecobank_linked: false,
   blaze_account: undefined,
-  credit_limit: 5000000,
-  simulated_balance: 8500000, // 85,000 NGN
+  credit_limit: 15000000, // Gold tier = ₦150,000 credit limit
+  // BUG-016: Balance reflects post-purchase state. Started with ₦211k, paid ₦85k+₦42k = ₦84k left.
+  // Adding Vintage Denim (₦18,500) headroom so the demo pay flow works.
+  simulated_balance: 21100000, // ₦211,000 — pre-payment starting balance shown to buyer
   created_at: new Date(Date.now() - 30 * 86400000).toISOString(),
 };
 
@@ -54,29 +56,26 @@ export const MOCK_ADMIN: Profile = {
 
 export const INITIAL_TRANSACTIONS: EscrowTransaction[] = [
   {
+    // Vintage Jacket: Amina listed it, Tunde hasn't paid yet — CREATED state, no buyer_id
     id: 'tx_vintage_jacket_01',
     code: '#escrow-vintage-denim-99a2',
     seller_id: MOCK_SELLER.id,
-    buyer_id: MOCK_BUYER.id,
     seller_name: MOCK_SELLER.full_name,
-    buyer_name: MOCK_BUYER.full_name,
     title: 'Vintage Levi 90s Oversized Denim Jacket (XL)',
     description: 'Authentic 90s oversized blue denim jacket. Grade A thrift, no tear or stain.',
     category: 'Fashion & Apparel',
     amount: 1850000, // 18,500 NGN
     fee: calculateEscrowFee(1850000),
     net_amount: 1850000 - calculateEscrowFee(1850000),
-    state: 'PAID',
+    state: 'CREATED',
     logistics: 'CAMPUS_DIRECT',
-    tracking_id: 'UNILAG-DROP-402',
-    ussd_pin: '482910',
-    payment_method: 'WALLET',
     transfer_account: '9920194810',
-    expires_at: new Date(Date.now() + 36 * 3600000).toISOString(),
+    expires_at: new Date(Date.now() + 48 * 3600000).toISOString(),
     created_at: new Date(Date.now() - 2 * 3600000).toISOString(),
-    updated_at: new Date(Date.now() - 1 * 3600000).toISOString(),
+    updated_at: new Date(Date.now() - 2 * 3600000).toISOString(),
   },
   {
+    // AirPods: Tunde paid, Amina dispatched — awaiting Tunde's delivery confirmation
     id: 'tx_airpods_pro_02',
     code: '#escrow-airpods-pro-gen2-7b1c',
     seller_id: MOCK_SELLER.id,
@@ -94,12 +93,14 @@ export const INITIAL_TRANSACTIONS: EscrowTransaction[] = [
     tracking_id: 'KWK-NG-8849102',
     ussd_pin: '910283',
     payment_method: 'TRANSFER',
+    transfer_account: '9920194820',
     expires_at: new Date(Date.now() + 24 * 3600000).toISOString(),
     dispatched_at: new Date(Date.now() - 3 * 3600000).toISOString(),
     created_at: new Date(Date.now() - 12 * 3600000).toISOString(),
     updated_at: new Date(Date.now() - 3 * 3600000).toISOString(),
   },
   {
+    // Keyboard: Tunde raised a dispute — funds frozen, under Ecobank review
     id: 'tx_macbook_keyboard_03',
     code: '#escrow-macbook-keyboard-3m9x',
     seller_id: MOCK_SELLER.id,
@@ -115,6 +116,8 @@ export const INITIAL_TRANSACTIONS: EscrowTransaction[] = [
     state: 'DISPUTED',
     logistics: 'GIG',
     tracking_id: 'GIG-LAK-90812',
+    payment_method: 'WALLET',
+    transfer_account: '9920194830',
     expires_at: new Date(Date.now() + 12 * 3600000).toISOString(),
     dispatched_at: new Date(Date.now() - 24 * 3600000).toISOString(),
     created_at: new Date(Date.now() - 48 * 3600000).toISOString(),
@@ -144,24 +147,36 @@ export const INITIAL_DISPUTES: Dispute[] = [
 
 export const INITIAL_NOTIFICATIONS: NotificationItem[] = [
   {
+    // BUG-013: Old notif falsely said Tunde paid for Vintage Denim (which is CREATED/unpaid).
+    // Replaced with accurate notification: AirPods was paid and dispatched.
     id: 'notif_01',
     user_id: MOCK_SELLER.id,
-    title: 'Payment Received in Escrow',
-    body: 'Tunde Bakare paid ₦18,500 for #escrow-vintage-denim-99a2. Deliver item to trigger release.',
-    type: 'PAYMENT',
+    title: 'AirPods Pro — Awaiting Delivery Confirmation',
+    body: 'Tunde Bakare has received dispatch notification for AirPods Pro Gen 2 (KWK-NG-8849102). Awaiting buyer confirmation.',
+    type: 'DISPATCH',
     read: false,
-    transaction_id: 'tx_vintage_jacket_01',
-    created_at: new Date(Date.now() - 1 * 3600000).toISOString(),
+    transaction_id: 'tx_airpods_pro_02',
+    created_at: new Date(Date.now() - 3 * 3600000).toISOString(),
   },
   {
     id: 'notif_02',
     user_id: MOCK_BUYER.id,
-    title: 'Package Dispatched',
-    body: 'Amina Bello dispatched AirPods Pro Gen 2 via Kwik Delivery (Tracking: KWK-NG-8849102).',
+    title: 'Package Dispatched — Confirm When Received',
+    body: 'Amina Bello dispatched AirPods Pro Gen 2 via Kwik Delivery. Tracking: KWK-NG-8849102. USSD PIN: *329*910283#',
     type: 'DISPATCH',
-    read: true,
+    read: false,
     transaction_id: 'tx_airpods_pro_02',
     created_at: new Date(Date.now() - 3 * 3600000).toISOString(),
+  },
+  {
+    id: 'notif_03',
+    user_id: MOCK_SELLER.id,
+    title: 'Dispute Filed on Logitech Keyboard',
+    body: 'Tunde Bakare filed a dispute on #escrow-macbook-keyboard-3m9x. Escrow funds are frozen pending Ecobank Compliance review.',
+    type: 'DISPUTE',
+    read: false,
+    transaction_id: 'tx_macbook_keyboard_03',
+    created_at: new Date(Date.now() - 6 * 3600000).toISOString(),
   }
 ];
 
@@ -211,6 +226,11 @@ class LocalStore {
       if (savedNotifs) {
         this.notifications = JSON.parse(savedNotifs);
       }
+
+      const savedWithdrawals = localStorage.getItem('blaze_withdrawals');
+      if (savedWithdrawals) {
+        this.withdrawals = JSON.parse(savedWithdrawals);
+      }
     } catch (e) {
       console.warn('LocalStorage read fallback', e);
     }
@@ -223,6 +243,7 @@ class LocalStore {
       localStorage.setItem('blaze_profiles', JSON.stringify(Array.from(this.profiles.values())));
       localStorage.setItem('blaze_disputes', JSON.stringify(Array.from(this.disputes.values())));
       localStorage.setItem('blaze_notifs', JSON.stringify(this.notifications));
+      localStorage.setItem('blaze_withdrawals', JSON.stringify(this.withdrawals));
     } catch (e) {
       console.warn('LocalStorage save fallback', e);
     }
@@ -373,6 +394,13 @@ class LocalStore {
       profile.simulated_balance = Math.max(0, profile.simulated_balance - amountKobo);
       this.saveProfile(profile);
     }
+    this.addNotification(
+      sellerId,
+      'Bank Payout Completed',
+      `₦${(amountKobo / 100).toLocaleString()} successfully transferred to ${bankName} (${accountNumber}). Ref: ${w.reference}`,
+      'PAYMENT'
+    );
+    this.saveToStorage();
     return w;
   }
 

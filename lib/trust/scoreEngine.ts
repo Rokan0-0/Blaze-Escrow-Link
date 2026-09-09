@@ -1,4 +1,4 @@
-import { mockStore } from '../mock/store';
+import { ServerDb } from '../db/serverDb';
 import { Profile } from '../mock/types';
 
 export function calculateTrustTier(score: number): {
@@ -17,13 +17,13 @@ export function calculateTrustTier(score: number): {
   return { tier: 'Bronze', creditLimitKobo: 0 }; // ₦0
 }
 
-export function updateTrustScore(
+export async function updateTrustScore(
   userId: string,
   delta: number,
   reason: string,
   transactionId?: string
-): Profile | undefined {
-  const profile = mockStore.getProfileById(userId);
+): Promise<Profile | undefined> {
+  const profile = await ServerDb.getProfileById(userId);
   if (!profile) return undefined;
 
   const oldScore = profile.trust_score;
@@ -35,18 +35,18 @@ export function updateTrustScore(
   profile.trust_tier = tier;
   profile.credit_limit = creditLimitKobo;
 
-  mockStore.saveProfile(profile);
+  await ServerDb.saveProfile(profile);
 
-  // Add notification if tier changed
+  // Add notification if tier upgraded
   if (oldScore < 60 && newScore >= 60) {
-    mockStore.addNotification(
+    await ServerDb.addNotification(
       userId,
-      'Trust Tier Upgraded!',
+      'Trust Tier Upgraded to Gold!',
       `Congratulations! You unlocked Gold Tier trust status with a ₦150,000 credit limit.`,
       'SYSTEM'
     );
   } else if (oldScore < 80 && newScore >= 80) {
-    mockStore.addNotification(
+    await ServerDb.addNotification(
       userId,
       'Platinum Trust Status Achieved!',
       `You reached Platinum Tier status! Your Ecobank Blaze credit limit is now ₦350,000.`,
