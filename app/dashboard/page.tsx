@@ -3,73 +3,75 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth/AuthContext';
-import { mockStore } from '@/lib/mock/store';
-import { EscrowTransaction, Withdrawal } from '@/lib/mock/types';
-import { formatNaira, calculateEscrowFee, formatDate } from '@/lib/formatters';
 import { Navbar } from '@/components/layout/Navbar';
 import { Footer } from '@/components/layout/Footer';
-import { TrustBadge } from '@/components/trust/TrustBadge';
 import { ShareCardModal } from '@/components/escrow/ShareCardModal';
+import { TrustBadge } from '@/components/trust/TrustBadge';
+import { formatNaira, formatDate, calculateEscrowFee } from '@/lib/formatters';
+import { mockStore } from '@/lib/mock/store';
+import { EscrowTransaction, Withdrawal } from '@/lib/mock/types';
 import confetti from 'canvas-confetti';
 import {
+  Link as LinkIcon,
   PlusCircle,
   Copy,
   Check,
   Landmark,
-  ExternalLink,
-  Link as LinkIcon,
-  MessageSquare,
-  RefreshCw,
   Share2,
+  ExternalLink,
+  RefreshCw,
   X,
+  MessageSquare,
+  AlertCircle,
   FileText,
-  CheckCircle2,
 } from 'lucide-react';
 
-export default function MerchantDashboard() {
-  const { user, isLoading, openAuthModal, refreshProfile } = useAuth();
+export default function DashboardPage() {
+  const { user, openAuthModal, isLoading, refreshProfile } = useAuth();
+
   const [transactions, setTransactions] = useState<EscrowTransaction[]>([]);
   const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([]);
   const [historyTab, setHistoryTab] = useState<'ESCROW' | 'PAYOUTS'>('ESCROW');
-  const [selectedReceipt, setSelectedReceipt] = useState<Withdrawal | null>(null);
-  const [activeShareTx, setActiveShareTx] = useState<EscrowTransaction | null>(null);
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [category, setCategory] = useState('Fashion & Apparel');
   const [amountNaira, setAmountNaira] = useState('');
-  const [logistics, setLogistics] = useState<'CAMPUS_DIRECT' | 'GIG' | 'KWIK' | 'SENDBOX' | 'OTHER'>('CAMPUS_DIRECT');
+  const [logistics, setLogistics] = useState<'GIG' | 'KWIK' | 'SENDBOX' | 'CAMPUS_DIRECT' | 'OTHER'>('CAMPUS_DIRECT');
 
   const [generatedLink, setGeneratedLink] = useState<EscrowTransaction | null>(null);
   const [copiedLink, setCopiedLink] = useState(false);
   const [copiedText, setCopiedText] = useState(false);
 
+  const [activeShareTx, setActiveShareTx] = useState<EscrowTransaction | null>(null);
+
   const [showWithdrawModal, setShowWithdrawModal] = useState(false);
   const [withdrawAmount, setWithdrawAmount] = useState('');
-  const [bankName] = useState('Ecobank Nigeria');
-  const [accountNumber] = useState('30987654321');
-  const [accountName] = useState('Amina Bello');
+  const [bankName, setBankName] = useState('Ecobank Nigeria');
+  const [accountNumber, setAccountNumber] = useState('30987654321');
+  const [accountName, setAccountName] = useState('');
   const [withdrawMsg, setWithdrawMsg] = useState('');
   const [withdrawError, setWithdrawError] = useState('');
+  const [activeReceipt, setActiveReceipt] = useState<Withdrawal | null>(null);
+
+  useEffect(() => {
+    if (user?.full_name) {
+      setAccountName(user.full_name);
+    }
+  }, [user]);
 
   const loadData = async () => {
-    // BUG-009/023: Guard — don't fetch if no user is logged in
     if (!user?.id) return;
-
     try {
-      // BUG-003: Filter by seller_id so only Amina's contracts appear in her dashboard
-      const res = await fetch(`/api/transactions?seller_id=${user.id}`);
-      const data = await res.json();
-      if (data.transactions) {
-        setTransactions(data.transactions);
+      const resTx = await fetch(`/api/transactions?seller_id=${user.id}`);
+      const dataTx = await resTx.json();
+      if (dataTx.transactions) {
+        setTransactions(dataTx.transactions);
       } else {
-        setTransactions(mockStore.getAllTransactions().filter((t) => t.seller_id === user.id));
+        const local = mockStore.getAllTransactions().filter((t) => t.seller_id === user.id);
+        setTransactions(local);
       }
-    } catch (e) {
-      setTransactions(mockStore.getAllTransactions().filter((t) => t.seller_id === user.id));
-    }
 
-    try {
       const resW = await fetch(`/api/withdraw?seller_id=${user.id}`);
       const dataW = await resW.json();
       if (dataW.withdrawals) {
@@ -77,13 +79,15 @@ export default function MerchantDashboard() {
       } else {
         setWithdrawals(mockStore.getWithdrawals(user.id));
       }
-    } catch (e) {
+    } catch {
+      const local = mockStore.getAllTransactions().filter((t) => t.seller_id === user.id);
+      setTransactions(local);
       setWithdrawals(mockStore.getWithdrawals(user.id));
     }
   };
 
   useEffect(() => {
-    if (!user?.id) return; // BUG-023: Don't set interval after logout
+    if (!user?.id) return;
     loadData();
     refreshProfile();
     const interval = setInterval(() => {
@@ -106,9 +110,9 @@ export default function MerchantDashboard() {
   if (!user) {
     return (
       <div className="min-h-screen bg-[#F8FAFC] flex flex-col justify-center items-center text-center p-4">
-        <div className="bg-white border border-slate-200 rounded-3xl p-8 max-w-md w-full shadow-lg space-y-4">
-          <h2 className="text-xl font-bold text-slate-900">Access Merchant Dashboard</h2>
-          <p className="text-xs text-slate-600">Please sign in to manage your Blaze Escrow links and bank payouts.</p>
+        <div className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-lg space-y-4">
+          <h2 className="text-lg sm:text-xl font-bold text-slate-900">Access Merchant Dashboard</h2>
+          <p className="text-xs text-slate-600 leading-relaxed">Please sign in to manage your Blaze Escrow links and bank payouts.</p>
           <button
             onClick={openAuthModal}
             className="w-full py-3 bg-[#006B3F] hover:bg-[#005432] text-white font-bold rounded-2xl text-xs transition-all shadow-md"
@@ -188,9 +192,9 @@ export default function MerchantDashboard() {
   const handleWithdraw = async (e: React.FormEvent) => {
     e.preventDefault();
     setWithdrawMsg('');
-    const amountKobo = Math.round((parseFloat(withdrawAmount) || 0) * 100);
-    setWithdrawMsg('');
     setWithdrawError('');
+    const amountKobo = Math.round((parseFloat(withdrawAmount) || 0) * 100);
+
     if (!amountKobo || amountKobo <= 0) {
       setWithdrawError('Please enter a valid payout amount.');
       return;
@@ -215,7 +219,6 @@ export default function MerchantDashboard() {
       const data = await res.json();
 
       if (data.success && data.new_balance !== undefined) {
-        // Sync local mockStore profile balance
         const localProfile = mockStore.getProfileById(user.id);
         if (localProfile) {
           localProfile.simulated_balance = data.new_balance;
@@ -231,11 +234,9 @@ export default function MerchantDashboard() {
           setWithdrawAmount('');
         }, 1500);
       } else {
-        // BUG-006: Show error clearly instead of silently falling through to local execution
         setWithdrawError(data.error || 'Payout failed. Please try again.');
       }
     } catch (e) {
-      // BUG-006: Network error — show clear error, do NOT silently deduct balance locally
       setWithdrawError('Network error. Please check your connection and try again.');
     }
   };
@@ -244,12 +245,12 @@ export default function MerchantDashboard() {
     <div className="min-h-screen bg-[#F8FAFC] flex flex-col">
       <Navbar />
 
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6 sm:space-y-8">
+      <main className="flex-1 max-w-7xl w-full mx-auto px-3.5 sm:px-6 py-5 sm:py-8 space-y-5 sm:space-y-8">
         {/* Header Title */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
-            <h1 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight">Merchant Escrow Dashboard</h1>
-            <p className="text-xs text-slate-500 mt-0.5 font-medium">
+            <h1 className="text-lg sm:text-2xl font-extrabold text-slate-900 tracking-tight">Merchant Escrow Dashboard</h1>
+            <p className="text-[11px] sm:text-xs text-slate-500 mt-0.5 font-medium">
               Welcome back, <span className="text-[#006B3F] font-bold">{user.full_name}</span> • Ecobank Blaze Merchant
             </p>
           </div>
@@ -257,34 +258,34 @@ export default function MerchantDashboard() {
           <div className="grid grid-cols-2 sm:flex sm:items-center gap-2 sm:gap-3 w-full sm:w-auto">
             <a
               href="#create-link"
-              className="px-3.5 py-2.5 rounded-xl bg-[#006B3F] hover:bg-[#005432] text-white font-bold text-xs transition-all shadow-md flex items-center justify-center gap-1.5 text-center"
+              className="px-3 py-2 sm:px-3.5 sm:py-2.5 rounded-xl bg-[#006B3F] hover:bg-[#005432] text-white font-bold text-xs transition-all shadow-md flex items-center justify-center gap-1.5 text-center"
             >
-              <PlusCircle className="w-4 h-4 shrink-0" /> Create Link
+              <PlusCircle className="w-3.5 h-3.5 shrink-0" /> Create Link
             </a>
             <button
               onClick={() => setShowWithdrawModal(true)}
-              className="px-3.5 py-2.5 rounded-xl bg-white hover:bg-slate-50 text-slate-800 font-bold text-xs border border-slate-200 transition-all flex items-center justify-center gap-1.5 shadow-xs text-center"
+              className="px-3 py-2 sm:px-3.5 sm:py-2.5 rounded-xl bg-white hover:bg-slate-50 text-slate-800 font-bold text-xs border border-slate-200 transition-all flex items-center justify-center gap-1.5 shadow-2xs text-center"
             >
-              <Landmark className="w-4 h-4 text-amber-600 shrink-0" /> Bank Payout
+              <Landmark className="w-3.5 h-3.5 text-amber-600 shrink-0" /> Bank Payout
             </button>
           </div>
         </div>
 
         {/* Ecobank Amber Banner */}
-        <div className="bg-gradient-to-r from-amber-50 via-amber-50/50 to-white border border-amber-200 rounded-2xl sm:rounded-3xl p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-xs">
-          <div className="flex items-start sm:items-center gap-3">
-            <div className="p-2.5 sm:p-3 rounded-2xl bg-amber-100 text-amber-700 border border-amber-200 shrink-0">
-              <Landmark className="w-5 h-5 sm:w-6 sm:h-6" />
+        <div className="bg-gradient-to-r from-amber-50 via-amber-50/50 to-white border border-amber-200 rounded-2xl p-3.5 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-2xs">
+          <div className="flex items-start sm:items-center gap-2.5 sm:gap-3">
+            <div className="p-2 sm:p-3 rounded-2xl bg-amber-100 text-amber-700 border border-amber-200 shrink-0">
+              <Landmark className="w-4 h-4 sm:w-6 sm:h-6" />
             </div>
             <div>
-              <div className="flex items-center gap-2 flex-wrap">
+              <div className="flex items-center gap-1.5 flex-wrap">
                 <span className="font-bold text-slate-900 text-xs sm:text-sm">Linked Ecobank Blaze Account</span>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-100 text-amber-800 border border-amber-300 uppercase">
+                <span className="px-1.5 py-0.5 rounded-full text-[9px] sm:text-[10px] font-extrabold bg-amber-100 text-amber-800 border border-amber-300 uppercase">
                   ACTIVE
                 </span>
               </div>
-              <p className="text-[11px] sm:text-xs text-slate-600 font-mono mt-0.5 font-medium leading-relaxed">
-                Account: <strong className="text-slate-900">30987654321</strong> • Unlocked Credit Line:{' '}
+              <p className="text-[10px] sm:text-xs text-slate-600 font-mono mt-0.5 font-medium leading-relaxed">
+                Account: <strong className="text-slate-900">30987654321</strong> • Credit Limit:{' '}
                 <strong className="text-[#006B3F]">{formatNaira(user.credit_limit)}</strong>
               </p>
             </div>
@@ -296,47 +297,47 @@ export default function MerchantDashboard() {
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="bg-white border border-slate-200 rounded-3xl p-5 space-y-1 shadow-xs">
-            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Available Balance</span>
-            <div className="text-2xl font-extrabold text-slate-900 font-mono">{formatNaira(user.simulated_balance)}</div>
-            <span className="text-[11px] text-[#006B3F] font-bold">Ready for instant payout</span>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+          <div className="bg-white border border-slate-200 rounded-2xl sm:rounded-3xl p-3.5 sm:p-5 space-y-1 shadow-2xs">
+            <span className="text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider">Available Balance</span>
+            <div className="text-base sm:text-2xl font-extrabold text-slate-900 font-mono truncate">{formatNaira(user.simulated_balance)}</div>
+            <span className="text-[10px] sm:text-[11px] text-[#006B3F] font-bold block truncate">Instant Payout</span>
           </div>
 
-          <div className="bg-white border border-slate-200 rounded-3xl p-5 space-y-1 shadow-xs">
-            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Total Sales Volume</span>
-            <div className="text-2xl font-extrabold text-slate-900 font-mono">{formatNaira(user.total_volume)}</div>
-            <span className="text-[11px] text-slate-500 font-medium">Lifetime processed</span>
+          <div className="bg-white border border-slate-200 rounded-2xl sm:rounded-3xl p-3.5 sm:p-5 space-y-1 shadow-2xs">
+            <span className="text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider">Sales Volume</span>
+            <div className="text-base sm:text-2xl font-extrabold text-slate-900 font-mono truncate">{formatNaira(user.total_volume)}</div>
+            <span className="text-[10px] sm:text-[11px] text-slate-500 font-medium block truncate">Lifetime Sales</span>
           </div>
 
-          <div className="bg-white border border-slate-200 rounded-3xl p-5 space-y-1 shadow-xs">
-            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Completed Trades</span>
-            <div className="text-2xl font-extrabold text-slate-900 font-mono">{user.completed_trades}</div>
-            <span className="text-[11px] text-purple-700 font-bold">0.0% Dispute Rate</span>
+          <div className="bg-white border border-slate-200 rounded-2xl sm:rounded-3xl p-3.5 sm:p-5 space-y-1 shadow-2xs">
+            <span className="text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider">Completed</span>
+            <div className="text-base sm:text-2xl font-extrabold text-slate-900 font-mono truncate">{user.completed_trades} Deals</div>
+            <span className="text-[10px] sm:text-[11px] text-purple-700 font-bold block truncate">0.0% Disputes</span>
           </div>
 
-          <div className="bg-white border border-slate-200 rounded-3xl p-5 space-y-1 shadow-xs">
-            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Trust Score</span>
-            <div className="text-2xl font-extrabold text-[#006B3F] font-mono">{user.trust_score}<span className="text-xs text-slate-400">/100</span></div>
-            <span className="text-[11px] text-amber-700 font-bold">{user.trust_tier} Tier Status</span>
+          <div className="bg-white border border-slate-200 rounded-2xl sm:rounded-3xl p-3.5 sm:p-5 space-y-1 shadow-2xs">
+            <span className="text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider">Trust Score</span>
+            <div className="text-base sm:text-2xl font-extrabold text-[#006B3F] font-mono truncate">{user.trust_score}<span className="text-xs text-slate-400">/100</span></div>
+            <span className="text-[10px] sm:text-[11px] text-amber-700 font-bold block truncate">{user.trust_tier} Status</span>
           </div>
         </div>
 
         {/* Link Generator */}
-        <div id="create-link" className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-6">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+        <div id="create-link" className="bg-white border border-slate-200 rounded-3xl p-4 sm:p-6 shadow-2xs space-y-4 sm:space-y-6">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
             <div>
-              <h2 className="font-extrabold text-slate-900 text-base flex items-center gap-2">
-                <LinkIcon className="w-5 h-5 text-[#006B3F]" /> Instant Escrow Link Generator
+              <h2 className="font-extrabold text-slate-900 text-sm sm:text-base flex items-center gap-2">
+                <LinkIcon className="w-4 h-4 sm:w-5 sm:h-5 text-[#006B3F]" /> Instant Escrow Link Generator
               </h2>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Generate instant payment link with embedded 0.75% escrow logic for WhatsApp & Instagram.
+              <p className="text-[11px] sm:text-xs text-slate-500 mt-0.5">
+                Generate payment link with 0.75% escrow logic for WhatsApp & Instagram.
               </p>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            <form onSubmit={handleCreateLink} className="space-y-4 text-xs">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8">
+            <form onSubmit={handleCreateLink} className="space-y-3.5 text-xs">
               <div>
                 <label className="block text-slate-700 font-bold mb-1">Item Title</label>
                 <input
@@ -345,17 +346,17 @@ export default function MerchantDashboard() {
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   placeholder="e.g. Vintage Levi 90s Oversized Denim Jacket"
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-900 placeholder-slate-400 font-medium focus:outline-none focus:border-[#006B3F]"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-slate-900 placeholder-slate-400 font-medium focus:outline-none focus:border-[#006B3F] text-xs"
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-2.5">
                 <div>
                   <label className="block text-slate-700 font-bold mb-1">Category</label>
                   <select
                     value={category}
                     onChange={(e) => setCategory(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-slate-900 font-medium"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-2.5 text-slate-900 font-medium text-xs"
                   >
                     <option value="Fashion & Apparel">Fashion & Apparel</option>
                     <option value="Electronics">Electronics</option>
@@ -374,7 +375,7 @@ export default function MerchantDashboard() {
                     value={amountNaira}
                     onChange={(e) => setAmountNaira(e.target.value)}
                     placeholder="18500"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-900 font-mono font-bold placeholder-slate-400 focus:outline-none focus:border-[#006B3F]"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-slate-900 font-mono font-bold placeholder-slate-400 focus:outline-none focus:border-[#006B3F] text-xs"
                   />
                 </div>
               </div>
@@ -386,7 +387,7 @@ export default function MerchantDashboard() {
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   placeholder="Grade A thrift condition, XL size..."
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-slate-900 placeholder-slate-400 font-medium focus:outline-none focus:border-[#006B3F]"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-slate-900 placeholder-slate-400 font-medium focus:outline-none focus:border-[#006B3F] text-xs"
                 />
               </div>
 
@@ -395,59 +396,44 @@ export default function MerchantDashboard() {
                 <select
                   value={logistics}
                   onChange={(e) => setLogistics(e.target.value as any)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-900 font-medium"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-slate-900 font-medium text-xs"
                 >
                   <option value="CAMPUS_DIRECT">Campus Direct (Handshake USSD PIN)</option>
-                  <option value="GIG">GIG Logistics Courier</option>
-                  <option value="KWIK">Kwik Express Dispatch</option>
+                  <option value="GIG">GIG Logistics</option>
+                  <option value="KWIK">Kwik Delivery Express</option>
                   <option value="SENDBOX">Sendbox Courier</option>
-                  <option value="OTHER">Other Logistics</option>
+                  <option value="OTHER">Other Courier</option>
                 </select>
               </div>
 
-              {numAmount > 0 && (
-                <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-1.5 font-mono text-[11px]">
-                  <div className="flex justify-between text-slate-600">
-                    <span>Buyer Price:</span>
-                    <span className="text-slate-900 font-bold">{formatNaira(numAmount)}</span>
-                  </div>
-                  <div className="flex justify-between text-slate-500">
-                    <span>Escrow Vault Fee (0.75% max ₦500):</span>
-                    <span>{formatNaira(feeKobo)}</span>
-                  </div>
-                  <div className="flex justify-between text-[#006B3F] font-extrabold border-t border-slate-200 pt-1">
-                    <span>Your Net Payout:</span>
-                    <span>{formatNaira(netKobo)}</span>
-                  </div>
-                </div>
-              )}
-
-              <button
-                type="submit"
-                className="w-full bg-[#006B3F] hover:bg-[#005432] text-white font-bold py-3.5 px-4 rounded-2xl text-xs transition-all shadow-md flex items-center justify-center gap-2"
-              >
-                Generate Escrow Link
-              </button>
+              <div className="pt-1">
+                <button
+                  type="submit"
+                  className="w-full py-3 rounded-2xl bg-[#006B3F] hover:bg-[#005432] text-white font-extrabold text-xs transition-all shadow-md"
+                >
+                  Generate Escrow Link
+                </button>
+              </div>
             </form>
 
-            <div className="flex flex-col justify-center bg-slate-50 border border-slate-200 rounded-2xl p-5 space-y-4">
+            {/* Generated Link Preview */}
+            <div className="flex flex-col justify-between bg-slate-50 border border-slate-200 rounded-2xl p-4 sm:p-5 space-y-4">
               {!generatedLink ? (
-                <div className="text-center py-10 text-slate-400 space-y-2">
-                  <LinkIcon className="w-8 h-8 mx-auto text-slate-300" />
-                  <p className="text-xs">Fill form to create your shareable Escrow Payment Link.</p>
+                <div className="h-full flex flex-col items-center justify-center text-center p-6 text-slate-400 space-y-2">
+                  <LinkIcon className="w-8 h-8 opacity-40" />
+                  <p className="text-xs">Fill the form to generate your escrow link & share card.</p>
                 </div>
               ) : (
                 <div className="space-y-4 text-xs">
-                  <div className="flex items-center justify-between text-[#006B3F] font-bold">
-                    <span className="flex items-center gap-1.5">
-                      <Check className="w-4 h-4" /> Link Active & Ready!
-                    </span>
-                    <span className="font-mono text-xs text-slate-500">{generatedLink.code}</span>
+                  <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-[#006B3F] font-bold flex items-center gap-2">
+                    <Check className="w-4 h-4 shrink-0" />
+                    Escrow Link Created! Share with buyer.
                   </div>
 
-                  <div className="bg-white border border-slate-200 rounded-xl p-3.5 space-y-2 shadow-2xs">
-                    <div className="font-bold text-slate-900 text-sm">{generatedLink.title}</div>
-                    <div className="text-[#006B3F] font-mono font-bold text-base">
+                  <div className="bg-white border border-slate-200 rounded-xl p-3 space-y-1">
+                    <span className="text-[10px] text-slate-400 font-mono">CODE: {generatedLink.code}</span>
+                    <h4 className="font-bold text-slate-900 text-sm truncate">{generatedLink.title}</h4>
+                    <div className="text-[#006B3F] font-mono font-bold text-sm">
                       {formatNaira(generatedLink.amount)}
                     </div>
                   </div>
@@ -455,32 +441,32 @@ export default function MerchantDashboard() {
                   <div className="space-y-2">
                     <button
                       onClick={handleCopyLink}
-                      className="w-full bg-[#006B3F] hover:bg-[#005432] text-white font-bold py-2.5 px-3 rounded-xl flex items-center justify-center gap-2 transition-all shadow-xs"
+                      className="w-full bg-[#006B3F] hover:bg-[#005432] text-white font-bold py-2.5 px-3 rounded-xl flex items-center justify-center gap-2 transition-all text-xs"
                     >
-                      {copiedLink ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                      {copiedLink ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
                       {copiedLink ? 'Copied Link!' : 'Copy Direct Payment Link'}
                     </button>
 
                     <button
                       onClick={() => setActiveShareTx(generatedLink)}
-                      className="w-full bg-[#25D366] hover:bg-[#20bd5a] text-white font-extrabold py-2.5 px-3 rounded-xl flex items-center justify-center gap-2 transition-all shadow-xs"
+                      className="w-full bg-[#25D366] hover:bg-[#20bd5a] text-white font-extrabold py-2.5 px-3 rounded-xl flex items-center justify-center gap-2 transition-all text-xs"
                     >
-                      <Share2 className="w-4 h-4" /> Open WhatsApp & IG Share Card
+                      <Share2 className="w-3.5 h-3.5" /> Open WhatsApp & IG Share Card
                     </button>
 
                     <button
                       onClick={handleCopySocialText}
-                      className="w-full bg-white hover:bg-slate-100 text-slate-800 border border-slate-200 font-bold py-2.5 px-3 rounded-xl flex items-center justify-center gap-2 transition-all shadow-xs"
+                      className="w-full bg-white hover:bg-slate-100 text-slate-800 border border-slate-200 font-bold py-2.5 px-3 rounded-xl flex items-center justify-center gap-2 transition-all text-xs"
                     >
-                      {copiedText ? <Check className="w-4 h-4 text-[#006B3F]" /> : <MessageSquare className="w-4 h-4 text-[#006B3F]" />}
-                      {copiedText ? 'Copied Caption Text!' : 'Copy Raw Text Caption'}
+                      {copiedText ? <Check className="w-3.5 h-3.5 text-[#006B3F]" /> : <MessageSquare className="w-3.5 h-3.5 text-[#006B3F]" />}
+                      {copiedText ? 'Copied Caption!' : 'Copy Raw Text Caption'}
                     </button>
 
                     <Link
                       href={`/pay/${encodeURIComponent(generatedLink.code)}`}
-                      className="w-full bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 font-bold py-2.5 px-3 rounded-xl flex items-center justify-center gap-2 transition-all"
+                      className="w-full bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 font-bold py-2.5 px-3 rounded-xl flex items-center justify-center gap-2 transition-all text-xs"
                     >
-                      <ExternalLink className="w-4 h-4" /> View Buyer Contract Page
+                      <ExternalLink className="w-3.5 h-3.5" /> View Buyer Page
                     </Link>
                   </div>
                 </div>
@@ -490,14 +476,14 @@ export default function MerchantDashboard() {
         </div>
 
         {/* Activity & History Section */}
-        <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
-            <div className="flex items-center gap-2">
+        <div className="bg-white border border-slate-200 rounded-3xl p-4 sm:p-6 shadow-2xs space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
+            <div className="flex items-center gap-1.5 sm:gap-2">
               <button
                 onClick={() => setHistoryTab('ESCROW')}
-                className={`px-4 py-2 rounded-xl text-xs font-extrabold transition-all flex items-center gap-2 ${
+                className={`px-3 py-1.5 sm:px-4 sm:py-2 rounded-xl text-xs font-extrabold transition-all flex items-center gap-1.5 ${
                   historyTab === 'ESCROW'
-                    ? 'bg-[#006B3F] text-white shadow-xs'
+                    ? 'bg-[#006B3F] text-white shadow-2xs'
                     : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                 }`}
               >
@@ -506,9 +492,9 @@ export default function MerchantDashboard() {
               </button>
               <button
                 onClick={() => setHistoryTab('PAYOUTS')}
-                className={`px-4 py-2 rounded-xl text-xs font-extrabold transition-all flex items-center gap-2 ${
+                className={`px-3 py-1.5 sm:px-4 sm:py-2 rounded-xl text-xs font-extrabold transition-all flex items-center gap-1.5 ${
                   historyTab === 'PAYOUTS'
-                    ? 'bg-[#006B3F] text-white shadow-xs'
+                    ? 'bg-[#006B3F] text-white shadow-2xs'
                     : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                 }`}
               >
@@ -517,22 +503,22 @@ export default function MerchantDashboard() {
               </button>
             </div>
 
-            <button onClick={loadData} className="text-xs text-slate-500 hover:text-slate-900 flex items-center gap-1 font-semibold">
+            <button onClick={loadData} className="text-xs text-slate-500 hover:text-slate-900 flex items-center gap-1 font-semibold self-end sm:self-auto">
               <RefreshCw className="w-3.5 h-3.5" /> Refresh
             </button>
           </div>
 
           <div className="overflow-x-auto">
             {historyTab === 'ESCROW' ? (
-              <table className="w-full text-left text-xs">
+              <table className="w-full text-left text-xs min-w-[600px]">
                 <thead>
                   <tr className="border-b border-slate-100 text-slate-500 font-bold uppercase text-[10px]">
-                    <th className="py-3 px-3">Escrow Code</th>
-                    <th className="py-3 px-3">Item Title</th>
-                    <th className="py-3 px-3">Amount</th>
-                    <th className="py-3 px-3">State</th>
-                    <th className="py-3 px-3">Date</th>
-                    <th className="py-3 px-3 text-right">Actions</th>
+                    <th className="py-2.5 px-3">Escrow Code</th>
+                    <th className="py-2.5 px-3">Item Title</th>
+                    <th className="py-2.5 px-3">Amount</th>
+                    <th className="py-2.5 px-3">State</th>
+                    <th className="py-2.5 px-3">Date</th>
+                    <th className="py-2.5 px-3 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 font-medium">
@@ -545,16 +531,16 @@ export default function MerchantDashboard() {
                   ) : (
                     transactions.map((t) => (
                       <tr key={t.id} className="hover:bg-slate-50/80 transition-colors">
-                        <td className="py-3 px-3 font-mono text-[#006B3F] font-bold">{t.code}</td>
-                        <td className="py-3 px-3 font-bold text-slate-900 max-w-xs truncate">{t.title}</td>
-                        <td className="py-3 px-3 font-mono font-bold text-slate-900">{formatNaira(t.amount)}</td>
-                        <td className="py-3 px-3">
-                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold uppercase border bg-slate-100 text-slate-700 border-slate-200">
+                        <td className="py-2.5 px-3 font-mono text-[#006B3F] font-bold text-[11px]">{t.code}</td>
+                        <td className="py-2.5 px-3 font-bold text-slate-900 max-w-xs truncate">{t.title}</td>
+                        <td className="py-2.5 px-3 font-mono font-bold text-slate-900">{formatNaira(t.amount)}</td>
+                        <td className="py-2.5 px-3">
+                          <span className="px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-mono font-bold uppercase border bg-slate-100 text-slate-700 border-slate-200">
                             {t.state}
                           </span>
                         </td>
-                        <td className="py-3 px-3 text-slate-500 text-[11px]">{formatDate(t.created_at)}</td>
-                        <td className="py-3 px-3 text-right space-x-2">
+                        <td className="py-2.5 px-3 text-slate-500 text-[11px]">{formatDate(t.created_at)}</td>
+                        <td className="py-2.5 px-3 text-right space-x-2">
                           <button
                             onClick={() => setActiveShareTx(t)}
                             className="text-xs text-[#006B3F] hover:underline font-bold inline-flex items-center gap-1"
@@ -574,16 +560,16 @@ export default function MerchantDashboard() {
                 </tbody>
               </table>
             ) : (
-              <table className="w-full text-left text-xs">
+              <table className="w-full text-left text-xs min-w-[650px]">
                 <thead>
                   <tr className="border-b border-slate-100 text-slate-500 font-bold uppercase text-[10px]">
-                    <th className="py-3 px-3">Payout Ref</th>
-                    <th className="py-3 px-3">Destination Bank & Account</th>
-                    <th className="py-3 px-3">Beneficiary</th>
-                    <th className="py-3 px-3">Amount</th>
-                    <th className="py-3 px-3">Status</th>
-                    <th className="py-3 px-3">Date & Time</th>
-                    <th className="py-3 px-3 text-right">Receipt</th>
+                    <th className="py-2.5 px-3">Payout Ref</th>
+                    <th className="py-2.5 px-3">Destination Bank & Account</th>
+                    <th className="py-2.5 px-3">Beneficiary</th>
+                    <th className="py-2.5 px-3">Amount</th>
+                    <th className="py-2.5 px-3">Status</th>
+                    <th className="py-2.5 px-3">Date & Time</th>
+                    <th className="py-2.5 px-3 text-right">Receipt</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 font-medium">
@@ -596,23 +582,21 @@ export default function MerchantDashboard() {
                   ) : (
                     withdrawals.map((w) => (
                       <tr key={w.id} className="hover:bg-slate-50/80 transition-colors">
-                        <td className="py-3 px-3 font-mono text-amber-700 font-bold">{w.reference}</td>
-                        <td className="py-3 px-3 font-bold text-slate-900">
-                          {w.bank_name} • <span className="font-mono text-slate-600">{w.account_number}</span>
+                        <td className="py-2.5 px-3 font-mono text-amber-700 font-bold text-[11px]">{w.reference}</td>
+                        <td className="py-2.5 px-3 font-bold text-slate-900">
+                          {w.bank_name} • {w.account_number}
                         </td>
-                        <td className="py-3 px-3 font-semibold text-slate-800">{w.account_name}</td>
-                        <td className="py-3 px-3 font-mono font-extrabold text-[#006B3F]">
-                          {formatNaira(w.amount)}
-                        </td>
-                        <td className="py-3 px-3">
-                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold uppercase border bg-emerald-50 text-[#006B3F] border-emerald-200 flex items-center gap-1 w-max">
-                            <CheckCircle2 className="w-3 h-3 text-[#006B3F]" /> COMPLETED
+                        <td className="py-2.5 px-3 text-slate-700">{w.account_name}</td>
+                        <td className="py-2.5 px-3 font-mono font-bold text-[#006B3F]">{formatNaira(w.amount)}</td>
+                        <td className="py-2.5 px-3">
+                          <span className="px-2 py-0.5 rounded-full text-[9px] font-mono font-bold uppercase bg-emerald-100 text-[#006B3F] border border-emerald-200">
+                            {w.status}
                           </span>
                         </td>
-                        <td className="py-3 px-3 text-slate-500 text-[11px]">{formatDate(w.created_at)}</td>
-                        <td className="py-3 px-3 text-right">
+                        <td className="py-2.5 px-3 text-slate-500 text-[11px]">{formatDate(w.created_at)}</td>
+                        <td className="py-2.5 px-3 text-right">
                           <button
-                            onClick={() => setSelectedReceipt(w)}
+                            onClick={() => setActiveReceipt(w)}
                             className="text-xs text-[#006B3F] hover:underline font-bold inline-flex items-center gap-1"
                           >
                             <FileText className="w-3.5 h-3.5" /> View Receipt
@@ -628,7 +612,105 @@ export default function MerchantDashboard() {
         </div>
       </main>
 
-      {/* Share Card Modal */}
+      {/* BANK PAYOUT MODAL */}
+      {showWithdrawModal && (
+        <div className="fixed inset-0 z-50 glass-modal flex items-center justify-center p-3.5 sm:p-4">
+          <div className="bg-white border border-slate-200 rounded-3xl max-w-md w-full p-5 sm:p-6 shadow-2xl space-y-4 relative">
+            <button
+              onClick={() => {
+                setShowWithdrawModal(false);
+                setWithdrawMsg('');
+                setWithdrawError('');
+              }}
+              className="absolute top-4 right-4 p-1.5 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500"
+            >
+              <X className="w-4 h-4" />
+            </button>
+
+            <div className="flex items-center gap-3 border-b border-slate-100 pb-3">
+              <div className="p-2.5 rounded-2xl bg-amber-100 text-amber-700">
+                <Landmark className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="font-extrabold text-slate-900 text-base">Ecobank Instant Payout</h3>
+                <p className="text-xs text-slate-500">Withdraw available escrow earnings to your bank account.</p>
+              </div>
+            </div>
+
+            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3.5 space-y-1">
+              <div className="text-[11px] text-slate-500 font-bold uppercase tracking-wider">Available Wallet Balance</div>
+              <div className="text-xl font-extrabold text-slate-900 font-mono">{formatNaira(user.simulated_balance)}</div>
+            </div>
+
+            {withdrawMsg && (
+              <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-xs text-[#006B3F] font-bold flex items-center gap-2">
+                <Check className="w-4 h-4 shrink-0" />
+                {withdrawMsg}
+              </div>
+            )}
+            {withdrawError && (
+              <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-700 font-bold flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                {withdrawError}
+              </div>
+            )}
+
+            <form onSubmit={handleWithdraw} className="space-y-3 text-xs">
+              <div>
+                <label className="block text-slate-700 font-bold mb-1">Payout Amount (NGN ₦)</label>
+                <input
+                  type="number"
+                  required
+                  value={withdrawAmount}
+                  onChange={(e) => setWithdrawAmount(e.target.value)}
+                  placeholder="e.g. 50000"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-900 font-mono font-bold text-sm focus:outline-none focus:border-[#006B3F]"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-700 font-bold mb-1">Destination Bank</label>
+                <input
+                  type="text"
+                  value={bankName}
+                  onChange={(e) => setBankName(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-900 font-medium text-xs"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2.5">
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">Account Number</label>
+                  <input
+                    type="text"
+                    value={accountNumber}
+                    onChange={(e) => setAccountNumber(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-900 font-mono text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">Account Name</label>
+                  <input
+                    type="text"
+                    value={accountName}
+                    onChange={(e) => setAccountName(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-900 font-medium text-xs"
+                  />
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                className="w-full py-3 rounded-2xl bg-[#006B3F] hover:bg-[#005432] text-white font-extrabold text-xs transition-all shadow-md mt-2"
+              >
+                Confirm Instant Bank Payout
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* SHARE CARD MODAL */}
       {activeShareTx && (
         <ShareCardModal
           transaction={activeShareTx}
@@ -636,164 +718,58 @@ export default function MerchantDashboard() {
         />
       )}
 
-      {/* PAYOUT RECEIPT MODAL */}
-      {selectedReceipt && (
-        <div className="fixed inset-0 z-50 glass-modal flex items-center justify-center p-4">
-          <div className="bg-white border border-slate-200 rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-5 relative animate-in zoom-in-95 duration-150">
+      {/* RECEIPT MODAL */}
+      {activeReceipt && (
+        <div className="fixed inset-0 z-50 glass-modal flex items-center justify-center p-3.5 sm:p-4">
+          <div className="bg-white border border-slate-200 rounded-3xl max-w-sm w-full p-5 sm:p-6 shadow-2xl space-y-4 relative text-xs">
             <button
-              onClick={() => setSelectedReceipt(null)}
-              className="absolute top-4 right-4 p-2 rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200"
+              onClick={() => setActiveReceipt(null)}
+              className="absolute top-4 right-4 p-1.5 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500"
             >
               <X className="w-4 h-4" />
             </button>
 
-            <div className="flex items-center gap-3 border-b border-slate-100 pb-4">
-              <div className="w-10 h-10 rounded-2xl bg-[#006B3F] text-white flex items-center justify-center font-extrabold shadow-md">
-                <Landmark className="w-5 h-5" />
+            <div className="text-center space-y-1 pb-3 border-b border-slate-100">
+              <div className="w-10 h-10 rounded-full bg-emerald-100 text-[#006B3F] flex items-center justify-center mx-auto mb-2 font-bold">
+                <Check className="w-5 h-5" />
               </div>
-              <div>
-                <h3 className="font-extrabold text-slate-900 text-sm">Ecobank Digital Payout Receipt</h3>
-                <p className="text-[11px] text-slate-500 font-mono">Reference: {selectedReceipt.reference}</p>
-              </div>
+              <h3 className="font-extrabold text-slate-900 text-sm">Ecobank Payout Receipt</h3>
+              <p className="text-[11px] text-slate-500 font-mono">{activeReceipt.reference}</p>
             </div>
 
-            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 text-center space-y-1">
-              <span className="text-[11px] text-slate-500 uppercase tracking-wider font-bold">Amount Transferred</span>
-              <div className="text-2xl font-extrabold text-[#006B3F] font-mono">
-                {formatNaira(selectedReceipt.amount)}
+            <div className="space-y-2 bg-slate-50 rounded-2xl p-3.5 font-mono text-[11px]">
+              <div className="flex justify-between">
+                <span className="text-slate-500">Amount:</span>
+                <span className="font-bold text-[#006B3F]">{formatNaira(activeReceipt.amount)}</span>
               </div>
-              <div className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-[#006B3F] uppercase">
-                <CheckCircle2 className="w-3 h-3" /> NIBSS Instant Settlement
+              <div className="flex justify-between">
+                <span className="text-slate-500">Bank:</span>
+                <span className="text-slate-900">{activeReceipt.bank_name}</span>
               </div>
-            </div>
-
-            <div className="space-y-2.5 text-xs font-mono border-t border-b border-slate-100 py-4">
+              <div className="flex justify-between">
+                <span className="text-slate-500">Account:</span>
+                <span className="text-slate-900">{activeReceipt.account_number}</span>
+              </div>
               <div className="flex justify-between">
                 <span className="text-slate-500">Beneficiary:</span>
-                <span className="font-bold text-slate-900">{selectedReceipt.account_name}</span>
+                <span className="text-slate-900">{activeReceipt.account_name}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-500">Destination Bank:</span>
-                <span className="font-bold text-slate-900">{selectedReceipt.bank_name}</span>
+                <span className="text-slate-500">Status:</span>
+                <span className="text-[#006B3F] font-bold">{activeReceipt.status}</span>
               </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500">Account Number:</span>
-                <span className="font-bold text-slate-900">{selectedReceipt.account_number}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500">Processed At:</span>
-                <span className="font-bold text-slate-900">{formatDate(selectedReceipt.created_at)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500">Transaction Status:</span>
-                <span className="font-bold text-[#006B3F]">COMPLETED / SUCCESS</span>
+              <div className="flex justify-between pt-2 border-t border-slate-200">
+                <span className="text-slate-500">Date:</span>
+                <span className="text-slate-700">{formatDate(activeReceipt.created_at)}</span>
               </div>
             </div>
 
-            <div className="flex justify-end gap-2">
-              <button
-                onClick={() => setSelectedReceipt(null)}
-                className="w-full py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs"
-              >
-                Close Receipt
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* WITHDRAWAL MODAL */}
-      {showWithdrawModal && (
-        <div className="fixed inset-0 z-50 glass-modal flex items-center justify-center p-4">
-          <div className="bg-white border border-slate-200 rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-4 relative">
             <button
-              onClick={() => setShowWithdrawModal(false)}
-              className="absolute top-4 right-4 p-2 rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200"
+              onClick={() => setActiveReceipt(null)}
+              className="w-full py-2.5 rounded-xl bg-slate-900 text-white font-bold text-xs"
             >
-              <X className="w-4 h-4" />
+              Close Receipt
             </button>
-
-            <h3 className="font-bold text-slate-900 text-base flex items-center gap-2">
-              <Landmark className="w-5 h-5 text-amber-600" /> Bank Payout Withdrawal
-            </h3>
-
-            <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 flex justify-between items-center text-xs font-mono">
-              <span className="text-slate-500 font-medium">Available Balance:</span>
-              <span className="font-bold text-[#006B3F] text-sm">{formatNaira(user.simulated_balance)}</span>
-            </div>
-
-            <form onSubmit={handleWithdraw} className="space-y-3 text-xs">
-              <div>
-                <label className="block text-slate-700 font-bold mb-1">Amount to Payout (NGN)</label>
-                <input
-                  type="number"
-                  required
-                  value={withdrawAmount}
-                  onChange={(e) => setWithdrawAmount(e.target.value)}
-                  placeholder="50000"
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-900 font-mono font-bold"
-                />
-              </div>
-
-              <div>
-                <label className="block text-slate-700 font-bold mb-1">Bank Name</label>
-                <input
-                  type="text"
-                  readOnly
-                  value={bankName}
-                  className="w-full bg-slate-100 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-600 font-bold"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="block text-slate-700 font-bold mb-1">Account Number</label>
-                  <input
-                    type="text"
-                    readOnly
-                    value={accountNumber}
-                    className="w-full bg-slate-100 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-900 font-mono font-bold"
-                  />
-                </div>
-                <div>
-                  <label className="block text-slate-700 font-bold mb-1">Account Name</label>
-                  <input
-                    type="text"
-                    readOnly
-                    value={accountName}
-                    className="w-full bg-slate-100 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-900 font-bold"
-                  />
-                </div>
-              </div>
-
-              {/* BUG-028: Error messages in red, success messages in green */}
-              {withdrawMsg && (
-                <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-[#006B3F] text-xs font-bold">
-                  {withdrawMsg}
-                </div>
-              )}
-              {withdrawError && (
-                <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-bold">
-                  {withdrawError}
-                </div>
-              )}
-
-              <div className="flex items-center justify-end gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setShowWithdrawModal(false)}
-                  className="px-4 py-2.5 rounded-xl bg-slate-100 text-slate-700 font-bold"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2.5 rounded-xl bg-[#006B3F] hover:bg-[#005432] text-white font-bold shadow-md"
-                >
-                  Confirm Payout
-                </button>
-              </div>
-            </form>
           </div>
         </div>
       )}

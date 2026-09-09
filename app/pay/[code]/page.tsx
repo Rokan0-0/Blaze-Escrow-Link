@@ -29,6 +29,7 @@ import {
   X,
   Info,
   CheckCircle2,
+  AlertCircle,
 } from 'lucide-react';
 
 export default function EscrowPaymentPage() {
@@ -83,7 +84,6 @@ export default function EscrowPaymentPage() {
       const d = mockStore.getDisputeByTxId(item.id);
       if (d) setDispute(d);
     } else {
-      // UX8: Mark not found so we show an error card instead of infinite loading
       setNotFound(true);
     }
   };
@@ -92,7 +92,6 @@ export default function EscrowPaymentPage() {
     loadData();
   }, [code]);
 
-  // Live polling — 3s interval so buyer and seller see real-time state transitions
   useEffect(() => {
     const interval = setInterval(loadData, 3000);
     return () => clearInterval(interval);
@@ -102,10 +101,10 @@ export default function EscrowPaymentPage() {
     return (
       <div className="min-h-screen bg-[#F8FAFC] flex flex-col">
         <Navbar />
-        <main className="flex-1 flex items-center justify-center px-4">
-          <div className="text-center max-w-sm space-y-4 bg-white border border-slate-200 rounded-3xl p-8 shadow-sm">
+        <main className="flex-1 flex items-center justify-center px-4 py-12">
+          <div className="text-center max-w-sm w-full space-y-4 bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-sm">
             <Lock className="w-10 h-10 text-slate-300 mx-auto" />
-            <h2 className="font-extrabold text-slate-900">Escrow Contract Not Found</h2>
+            <h2 className="font-extrabold text-slate-900 text-base">Escrow Contract Not Found</h2>
             <p className="text-xs text-slate-500 leading-relaxed">
               This escrow link is invalid, expired, or has been removed. Please verify the link from your seller.
             </p>
@@ -119,18 +118,17 @@ export default function EscrowPaymentPage() {
 
   if (!tx) {
     return (
-      <div className="min-h-screen bg-[#F8FAFC] flex items-center justify-center text-slate-500 text-sm font-medium">
+      <div className="min-h-screen bg-[#F8FAFC] flex items-center justify-center text-slate-500 text-xs font-medium">
         Loading Escrow Contract...
       </div>
     );
   }
 
-  // BUG-001: Fixed operator precedence — was: !!user && tx.buyer_id ? ... (evaluates tx.buyer_id as truthy string)
-  // Now correctly: all three parts are boolean-AND'd before comparison
   const isSeller = !!user && user.id === tx.seller_id;
   const isBuyer = !!user && !!tx.buyer_id && user.id === tx.buyer_id;
   const isPotentialBuyer = !!user && !isSeller && tx.state === 'CREATED';
   const isGuest = !user;
+  const isThirdPartyOnClaimedContract = !isSeller && !isBuyer && tx.state !== 'CREATED';
 
   const handleCopyLink = () => {
     if (typeof window !== 'undefined') {
@@ -255,21 +253,21 @@ export default function EscrowPaymentPage() {
     <div className="min-h-screen bg-[#F8FAFC] flex flex-col">
       <Navbar />
 
-      <main className="flex-1 max-w-4xl w-full mx-auto px-4 py-8 space-y-6">
+      <main className="flex-1 max-w-4xl w-full mx-auto px-3.5 sm:px-6 py-5 sm:py-8 space-y-4 sm:space-y-6">
 
         {/* Top banner */}
-        <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs flex items-center justify-between gap-3 text-xs text-slate-700">
-          <div className="flex items-center gap-2">
-            <Lock className="w-4 h-4 text-[#006B3F] shrink-0" />
-            <span>
-              Escrow Vault: <strong className="text-slate-900 font-mono">{tx.code}</strong>{' '}
-              {isSeller && <span className="ml-1 px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 font-bold text-[10px] uppercase border border-amber-200">Your Listing</span>}
-              {isBuyer && <span className="ml-1 px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 font-bold text-[10px] uppercase border border-blue-200">Your Order</span>}
+        <div className="bg-white border border-slate-200 rounded-2xl p-3 sm:p-4 shadow-2xs flex flex-wrap items-center justify-between gap-2 text-xs text-slate-700">
+          <div className="flex items-center gap-2 min-w-0">
+            <Lock className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#006B3F] shrink-0" />
+            <span className="truncate">
+              Escrow Vault: <strong className="text-slate-900 font-mono text-[11px] sm:text-xs">{tx.code}</strong>{' '}
+              {isSeller && <span className="ml-1 px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 font-bold text-[9px] sm:text-[10px] uppercase border border-amber-200">Your Listing</span>}
+              {isBuyer && <span className="ml-1 px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 font-bold text-[9px] sm:text-[10px] uppercase border border-blue-200">Your Order</span>}
             </span>
           </div>
           <button
             onClick={handleCopyLink}
-            className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold flex items-center gap-1.5 transition-all"
+            className="px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-[11px] sm:text-xs font-bold flex items-center gap-1.5 transition-all shrink-0 ml-auto"
           >
             {copiedLink ? <Check className="w-3.5 h-3.5 text-[#006B3F]" /> : <Copy className="w-3.5 h-3.5" />}
             {copiedLink ? 'Copied' : 'Copy Link'}
@@ -281,43 +279,56 @@ export default function EscrowPaymentPage() {
 
         {/* Action Alerts */}
         {actionError && (
-          <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-bold flex items-center gap-2">
+          <div className="p-3.5 sm:p-4 rounded-2xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-bold flex items-center gap-2">
             <AlertTriangle className="w-4 h-4 shrink-0" />
             {actionError}
           </div>
         )}
         {actionSuccess && (
-          <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold flex items-center gap-2">
+          <div className="p-3.5 sm:p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold flex items-center gap-2">
             <Check className="w-4 h-4 shrink-0 text-[#006B3F]" />
             {actionSuccess}
           </div>
         )}
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {/* Main content — 2 cols */}
-          <div className="md:col-span-2 space-y-6">
+        {/* Claimed Link Banner for Third Parties */}
+        {isThirdPartyOnClaimedContract && (
+          <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-start gap-3 text-amber-900 shadow-2xs">
+            <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+            <div className="space-y-1 text-xs">
+              <h4 className="font-extrabold text-slate-900 text-xs sm:text-sm">Escrow Link Already Claimed</h4>
+              <p className="text-amber-800 leading-relaxed text-[11px] sm:text-xs">
+                This escrow contract has already been paid for by a buyer and is currently in state <strong>{tx.state}</strong>. Escrow payment links are single-use per sale. If you wish to buy from this seller, please ask them for a new link.
+              </p>
+            </div>
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-5 sm:gap-6">
+          {/* Main content */}
+          <div className="md:col-span-2 space-y-4 sm:space-y-6">
 
             {/* Product card */}
-            <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-5">
+            <div className="bg-white border border-slate-200 rounded-3xl p-4 sm:p-6 shadow-2xs space-y-4">
               <div>
-                <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 border border-slate-200 uppercase tracking-wider">
+                <span className="text-[10px] sm:text-[11px] font-bold px-2.5 py-0.5 sm:py-1 rounded-full bg-slate-100 text-slate-600 border border-slate-200 uppercase tracking-wider">
                   {tx.category}
                 </span>
-                <h1 className="text-xl font-extrabold text-slate-900 mt-2 leading-tight">{tx.title}</h1>
+                <h1 className="text-lg sm:text-xl font-extrabold text-slate-900 mt-2 leading-tight">{tx.title}</h1>
                 <p className="text-xs text-slate-600 mt-1 leading-relaxed">{tx.description}</p>
               </div>
 
               {/* Fee Breakdown */}
-              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-2 font-mono text-xs">
+              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3.5 sm:p-4 space-y-2 font-mono text-xs">
                 <div className="flex items-center justify-between text-slate-700 font-medium">
                   <span>Item Price:</span>
-                  <span className="text-sm font-bold text-slate-900">{formatNaira(tx.amount)}</span>
+                  <span className="text-xs sm:text-sm font-bold text-slate-900">{formatNaira(tx.amount)}</span>
                 </div>
-                <div className="flex items-center justify-between text-slate-500 text-[11px]">
+                <div className="flex items-center justify-between text-slate-500 text-[10px] sm:text-[11px]">
                   <span>Escrow Fee (0.75% max ₦500):</span>
                   <span>{formatNaira(tx.fee)}</span>
                 </div>
-                <div className="border-t border-slate-200 pt-2 flex items-center justify-between text-[#006B3F] font-bold">
+                <div className="border-t border-slate-200 pt-2 flex items-center justify-between text-[#006B3F] font-bold text-xs sm:text-sm">
                   <span>Net Payout to Seller:</span>
                   <span>{formatNaira(tx.net_amount)}</span>
                 </div>
@@ -325,18 +336,18 @@ export default function EscrowPaymentPage() {
 
               {/* Seller Info */}
               {sellerProfile && (
-                <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-[#006B3F] text-white flex items-center justify-center font-extrabold font-mono text-sm shadow-xs">
+                <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2.5 sm:gap-3">
+                    <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-[#006B3F] text-white flex items-center justify-center font-extrabold font-mono text-xs sm:text-sm shadow-2xs shrink-0">
                       {sellerProfile.full_name.charAt(0)}
                     </div>
                     <div>
-                      <div className="flex items-center gap-1.5">
-                        <span className="font-bold text-slate-900 text-sm">{sellerProfile.full_name}</span>
-                        <ShieldCheck className="w-4 h-4 text-[#006B3F]" />
+                      <div className="flex items-center gap-1">
+                        <span className="font-bold text-slate-900 text-xs sm:text-sm">{sellerProfile.full_name}</span>
+                        <ShieldCheck className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#006B3F]" />
                       </div>
-                      <div className="text-xs text-slate-500">
-                        {sellerProfile.completed_trades} Completed Deals • Verified Seller
+                      <div className="text-[11px] text-slate-500">
+                        {sellerProfile.completed_trades} Completed Deals • Verified
                       </div>
                     </div>
                   </div>
@@ -345,47 +356,39 @@ export default function EscrowPaymentPage() {
               )}
             </div>
 
-            {/* ============================================================
-                ROLE-AWARE ACTION PANELS
-                ============================================================ */}
-
-            {/* ---- SELLER VIEW: CREATED — Share link panel ---- */}
+            {/* SELLER VIEW: CREATED — Share link panel */}
             {isSeller && tx.state === 'CREATED' && (
-              <div className="bg-white border border-amber-200 rounded-3xl p-6 shadow-sm space-y-4">
-                <h3 className="font-bold text-slate-900 text-sm uppercase tracking-wider flex items-center gap-2">
+              <div className="bg-white border border-amber-200 rounded-3xl p-4 sm:p-6 shadow-2xs space-y-3.5">
+                <h3 className="font-bold text-slate-900 text-xs sm:text-sm uppercase tracking-wider flex items-center gap-2">
                   <Share2 className="w-4 h-4 text-amber-600" /> Share This Link with Your Buyer
                 </h3>
                 <p className="text-xs text-slate-500 leading-relaxed">
-                  This is your escrow payment link. Send it to your buyer via WhatsApp, Instagram DM, or any channel.
-                  Once they pay, you&apos;ll be notified here to dispatch the item.
+                  This is your escrow payment link. Send it to your buyer via WhatsApp or Instagram DM.
+                  Once they pay, you will be notified to dispatch.
                 </p>
-                <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3 flex items-center justify-between gap-3">
-                  <span className="text-[11px] font-mono text-amber-900 break-all">
+                <div className="bg-amber-50 border border-amber-200 rounded-2xl p-2.5 sm:p-3 flex items-center justify-between gap-2">
+                  <span className="text-[10px] sm:text-[11px] font-mono text-amber-900 truncate">
                     {typeof window !== 'undefined' ? `${window.location.origin}/pay/${encodeURIComponent(tx.code)}` : `/pay/${encodeURIComponent(tx.code)}`}
                   </span>
                   <button
                     onClick={handleCopyLink}
-                    className="shrink-0 px-3 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold flex items-center gap-1.5 transition-all"
+                    className="shrink-0 px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-[11px] sm:text-xs font-bold flex items-center gap-1 transition-all"
                   >
                     {copiedLink ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                    {copiedLink ? 'Copied!' : 'Copy'}
+                    {copiedLink ? 'Copied' : 'Copy'}
                   </button>
-                </div>
-                <div className="flex items-center gap-2 text-xs text-slate-500 bg-slate-50 rounded-xl p-3 border border-slate-200">
-                  <Clock className="w-4 h-4 text-slate-400 shrink-0" />
-                  <span>Link expires: <strong className="text-slate-700">{formatDate(tx.expires_at)}</strong></span>
                 </div>
               </div>
             )}
 
-            {/* ---- SELLER VIEW: PAID — Dispatch form ---- */}
+            {/* SELLER VIEW: PAID — Dispatch form */}
             {isSeller && tx.state === 'PAID' && (
-              <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-4">
+              <div className="bg-white border border-slate-200 rounded-3xl p-4 sm:p-6 shadow-2xs space-y-3.5">
                 <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-xs text-[#006B3F] font-bold flex items-center gap-2">
                   <CheckCircle2 className="w-4 h-4 shrink-0" />
                   Payment locked in escrow by {tx.buyer_name || 'buyer'}. Ready to dispatch!
                 </div>
-                <h3 className="font-bold text-slate-900 text-sm uppercase tracking-wider flex items-center gap-2">
+                <h3 className="font-bold text-slate-900 text-xs sm:text-sm uppercase tracking-wider flex items-center gap-2">
                   <Truck className="w-4 h-4 text-purple-600" /> Dispatch Controls — Seller Only
                 </h3>
                 <form onSubmit={handleDispatch} className="space-y-3 text-xs">
@@ -394,7 +397,7 @@ export default function EscrowPaymentPage() {
                     <select
                       value={logisticsProvider}
                       onChange={(e) => setLogisticsProvider(e.target.value as any)}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-900 font-medium"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-slate-900 font-medium text-xs"
                     >
                       <option value="CAMPUS_DIRECT">Campus Direct (Handshake USSD PIN)</option>
                       <option value="GIG">GIG Logistics</option>
@@ -410,13 +413,13 @@ export default function EscrowPaymentPage() {
                       value={trackingId}
                       onChange={(e) => setTrackingId(e.target.value)}
                       placeholder="e.g. KWK-NG-8849102"
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-900 font-mono font-bold"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-slate-900 font-mono font-bold text-xs"
                     />
                   </div>
                   <button
                     type="submit"
                     disabled={isProcessing}
-                    className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-4 rounded-2xl text-xs transition-all shadow-md disabled:opacity-50"
+                    className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-2.5 sm:py-3 px-4 rounded-2xl text-xs transition-all shadow-md disabled:opacity-50"
                   >
                     {isProcessing ? 'Updating Order...' : 'Confirm Dispatch & Send Tracking to Buyer'}
                   </button>
@@ -424,13 +427,13 @@ export default function EscrowPaymentPage() {
               </div>
             )}
 
-            {/* ---- SELLER VIEW: DISPATCHED — Awaiting buyer confirmation ---- */}
+            {/* SELLER VIEW: DISPATCHED — Awaiting buyer confirmation */}
             {isSeller && tx.state === 'DISPATCHED' && (
-              <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-4">
-                <h3 className="font-bold text-slate-900 text-sm uppercase tracking-wider flex items-center gap-2">
+              <div className="bg-white border border-slate-200 rounded-3xl p-4 sm:p-6 shadow-2xs space-y-3.5">
+                <h3 className="font-bold text-slate-900 text-xs sm:text-sm uppercase tracking-wider flex items-center gap-2">
                   <Clock className="w-4 h-4 text-blue-500" /> Awaiting Buyer Confirmation
                 </h3>
-                <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 space-y-2 text-xs">
+                <div className="bg-blue-50 border border-blue-200 rounded-2xl p-3.5 sm:p-4 space-y-2 text-xs">
                   <div className="flex justify-between text-slate-600">
                     <span>Logistics:</span>
                     <span className="font-bold text-slate-900">{tx.logistics}</span>
@@ -442,77 +445,61 @@ export default function EscrowPaymentPage() {
                   {tx.ussd_pin && (
                     <div className="flex justify-between text-slate-600 font-mono border-t border-blue-200 pt-2">
                       <span>USSD PIN for buyer:</span>
-                      <span className="bg-emerald-100 text-[#006B3F] border border-emerald-200 px-2 py-0.5 rounded-lg font-extrabold text-xs">
+                      <span className="bg-emerald-100 text-[#006B3F] border border-emerald-200 px-2 py-0.5 rounded-lg font-extrabold text-[11px]">
                         *329*{tx.ussd_pin}#
                       </span>
                     </div>
                   )}
                 </div>
-                <p className="text-xs text-slate-500 flex items-start gap-2">
-                  <Info className="w-3.5 h-3.5 shrink-0 mt-0.5 text-blue-400" />
-                  Escrow funds of <strong>{formatNaira(tx.net_amount)}</strong> will be released to your wallet once the buyer confirms receipt.
-                </p>
               </div>
             )}
 
-            {/* ---- SELLER VIEW: terminal states ---- */}
-            {isSeller && tx.state === 'RELEASED' && (
-              <div className="bg-emerald-50 border border-emerald-200 rounded-3xl p-6 shadow-sm space-y-2">
-                <div className="flex items-center gap-2 text-[#006B3F] font-extrabold text-sm">
-                  <CheckCircle2 className="w-5 h-5" /> Funds Released to Your Wallet
-                </div>
-                <p className="text-xs text-slate-600">
-                  <strong>{formatNaira(tx.net_amount)}</strong> has been credited to your Blaze Escrow wallet balance.
-                </p>
-              </div>
-            )}
-
-            {/* ---- BUYER / GUEST VIEW: CREATED — Payment panel ---- */}
+            {/* BUYER / GUEST VIEW: CREATED — Payment panel */}
             {(isBuyer || isPotentialBuyer || isGuest) && tx.state === 'CREATED' && (
-              <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-4">
-                <h3 className="font-bold text-slate-900 text-sm uppercase tracking-wider flex items-center gap-2">
+              <div className="bg-white border border-slate-200 rounded-3xl p-4 sm:p-6 shadow-2xs space-y-4">
+                <h3 className="font-bold text-slate-900 text-xs sm:text-sm uppercase tracking-wider flex items-center gap-2">
                   <Lock className="w-4 h-4 text-[#006B3F]" /> Select Payment Method
                 </h3>
 
                 <div className="grid grid-cols-3 gap-2">
                   <button
                     onClick={() => setPaymentTab('WALLET')}
-                    className={`p-3 rounded-2xl border text-xs font-bold flex flex-col items-center gap-1.5 transition-all ${
+                    className={`p-2.5 sm:p-3 rounded-2xl border text-[11px] sm:text-xs font-bold flex flex-col items-center gap-1 transition-all ${
                       paymentTab === 'WALLET'
                         ? 'bg-emerald-50 border-[#006B3F] text-[#006B3F]'
                         : 'bg-slate-50 border-slate-200 text-slate-600 hover:text-slate-900'
                     }`}
                   >
-                    <Wallet className="w-5 h-5 text-[#006B3F]" />
-                    <span>Blaze Wallet</span>
+                    <Wallet className="w-4 h-4 sm:w-5 sm:h-5 text-[#006B3F]" />
+                    <span>Wallet</span>
                   </button>
                   <button
                     onClick={() => setPaymentTab('TRANSFER')}
-                    className={`p-3 rounded-2xl border text-xs font-bold flex flex-col items-center gap-1.5 transition-all ${
+                    className={`p-2.5 sm:p-3 rounded-2xl border text-[11px] sm:text-xs font-bold flex flex-col items-center gap-1 transition-all ${
                       paymentTab === 'TRANSFER'
                         ? 'bg-emerald-50 border-[#006B3F] text-[#006B3F]'
                         : 'bg-slate-50 border-slate-200 text-slate-600 hover:text-slate-900'
                     }`}
                   >
-                    <Building2 className="w-5 h-5 text-blue-600" />
-                    <span>Bank Transfer</span>
+                    <Building2 className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600" />
+                    <span>Transfer</span>
                   </button>
                   <button
                     onClick={() => setPaymentTab('CARD')}
-                    className={`p-3 rounded-2xl border text-xs font-bold flex flex-col items-center gap-1.5 transition-all ${
+                    className={`p-2.5 sm:p-3 rounded-2xl border text-[11px] sm:text-xs font-bold flex flex-col items-center gap-1 transition-all ${
                       paymentTab === 'CARD'
                         ? 'bg-emerald-50 border-[#006B3F] text-[#006B3F]'
                         : 'bg-slate-50 border-slate-200 text-slate-600 hover:text-slate-900'
                     }`}
                   >
-                    <CreditCard className="w-5 h-5 text-purple-600" />
-                    <span>Debit Card</span>
+                    <CreditCard className="w-4 h-4 sm:w-5 sm:h-5 text-purple-600" />
+                    <span>Card</span>
                   </button>
                 </div>
 
                 {/* WALLET */}
                 {paymentTab === 'WALLET' && (
-                  <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3">
+                  <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3.5 sm:p-4 space-y-3">
                     <div className="flex items-center justify-between text-xs">
                       <span className="text-slate-600 font-medium">Your Wallet Balance:</span>
                       <span className="font-mono font-bold text-slate-900">
@@ -522,7 +509,7 @@ export default function EscrowPaymentPage() {
                     {!user ? (
                       <button
                         onClick={openAuthModal}
-                        className="w-full bg-[#006B3F] hover:bg-[#005432] text-white font-bold py-3 px-4 rounded-xl text-xs transition-all shadow-md"
+                        className="w-full bg-[#006B3F] hover:bg-[#005432] text-white font-bold py-2.5 sm:py-3 px-4 rounded-xl text-xs transition-all shadow-md"
                       >
                         Sign In to Pay via Blaze Wallet
                       </button>
@@ -530,7 +517,7 @@ export default function EscrowPaymentPage() {
                       <button
                         onClick={handlePay}
                         disabled={isProcessing || isSeller || user.simulated_balance < tx.amount}
-                        className="w-full bg-[#006B3F] hover:bg-[#005432] text-white font-bold py-3 px-4 rounded-2xl text-sm transition-all flex items-center justify-center gap-2 shadow-lg disabled:opacity-50"
+                        className="w-full bg-[#006B3F] hover:bg-[#005432] text-white font-bold py-2.5 sm:py-3 px-4 rounded-2xl text-xs sm:text-sm transition-all flex items-center justify-center gap-2 shadow-md disabled:opacity-50"
                       >
                         {isProcessing ? 'Locking in Escrow...' : `Pay ${formatNaira(tx.amount)} via Escrow Vault`}
                         <ArrowRight className="w-4 h-4" />
@@ -544,7 +531,7 @@ export default function EscrowPaymentPage() {
 
                 {/* TRANSFER */}
                 {paymentTab === 'TRANSFER' && (
-                  <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3 text-xs">
+                  <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3.5 sm:p-4 space-y-3 text-xs">
                     <p className="text-slate-600 leading-relaxed">
                       Transfer exact amount to this dedicated virtual escrow account.
                     </p>
@@ -555,12 +542,12 @@ export default function EscrowPaymentPage() {
                       </div>
                       <div className="flex items-center justify-between text-slate-600">
                         <span>Account Name:</span>
-                        <span className="font-bold text-slate-900">BLAZE ESCROW VAULT #{tx.code.slice(-6)}</span>
+                        <span className="font-bold text-slate-900 text-[11px]">BLAZE ESCROW #{tx.code.slice(-6)}</span>
                       </div>
                       <div className="flex items-center justify-between text-slate-600 pt-1 border-t border-slate-100">
                         <span>Virtual Account:</span>
                         <div className="flex items-center gap-2">
-                          <span className="font-mono font-extrabold text-slate-900 text-base">
+                          <span className="font-mono font-extrabold text-slate-900 text-sm sm:text-base">
                             {tx.transfer_account || '9920194810'}
                           </span>
                           <button
@@ -575,7 +562,7 @@ export default function EscrowPaymentPage() {
                     <button
                       onClick={handlePay}
                       disabled={isProcessing || isSeller || !user}
-                      className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-2xl text-xs transition-all shadow-md disabled:opacity-50"
+                      className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 sm:py-3 px-4 rounded-2xl text-xs transition-all shadow-md disabled:opacity-50"
                     >
                       {isSeller ? 'You are the seller' : !user ? 'Sign In First' : isProcessing ? 'Verifying Transfer...' : 'Simulate Bank Transfer Webhook'}
                     </button>
@@ -584,20 +571,20 @@ export default function EscrowPaymentPage() {
 
                 {/* CARD */}
                 {paymentTab === 'CARD' && (
-                  <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3 text-xs">
+                  <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3.5 sm:p-4 space-y-3 text-xs">
                     <div className="space-y-1.5">
                       <label className="block text-slate-700 font-bold">Card Number</label>
                       <input
                         type="text"
                         disabled
                         value="5399 •••• •••• 4910 (Demo Card)"
-                        className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-slate-900 font-mono"
+                        className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-slate-900 font-mono text-xs"
                       />
                     </div>
                     <button
                       onClick={handlePay}
                       disabled={isProcessing || isSeller || !user}
-                      className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-4 rounded-2xl text-xs transition-all shadow-md disabled:opacity-50"
+                      className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-2.5 sm:py-3 px-4 rounded-2xl text-xs transition-all shadow-md disabled:opacity-50"
                     >
                       {isSeller ? 'You are the seller' : !user ? 'Sign In First' : isProcessing ? 'Authorizing Card...' : `Authorize ${formatNaira(tx.amount)} Payment`}
                     </button>
@@ -606,31 +593,31 @@ export default function EscrowPaymentPage() {
               </div>
             )}
 
-            {/* ---- BUYER VIEW: PAID — Awaiting dispatch ---- */}
+            {/* BUYER VIEW: PAID — Awaiting dispatch */}
             {isBuyer && tx.state === 'PAID' && (
-              <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-4">
-                <h3 className="font-bold text-slate-900 text-sm uppercase tracking-wider flex items-center gap-2">
+              <div className="bg-white border border-slate-200 rounded-3xl p-4 sm:p-6 shadow-2xs space-y-3">
+                <h3 className="font-bold text-slate-900 text-xs sm:text-sm uppercase tracking-wider flex items-center gap-2">
                   <Clock className="w-4 h-4 text-amber-500" /> Payment Locked — Awaiting Seller Dispatch
                 </h3>
-                <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 text-xs space-y-2">
+                <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3.5 sm:p-4 text-xs space-y-1.5">
                   <div className="flex items-center gap-2 text-amber-800 font-bold">
-                    <CheckCircle2 className="w-4 h-4 text-[#006B3F]" />
-                    Your payment of <strong>{formatNaira(tx.amount)}</strong> is safely locked in the Ecobank Escrow Vault.
+                    <CheckCircle2 className="w-4 h-4 text-[#006B3F] shrink-0" />
+                    Payment of {formatNaira(tx.amount)} locked in Ecobank Escrow Vault.
                   </div>
-                  <p className="text-amber-700 leading-relaxed">
-                    The seller has been notified to dispatch. This page will automatically update when the item is dispatched.
+                  <p className="text-amber-700 text-[11px] leading-relaxed">
+                    Seller notified to dispatch. This page will update once dispatched.
                   </p>
                 </div>
               </div>
             )}
 
-            {/* ---- BUYER VIEW: DISPATCHED — Confirm delivery ---- */}
+            {/* BUYER VIEW: DISPATCHED — Confirm delivery */}
             {isBuyer && tx.state === 'DISPATCHED' && (
-              <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-4">
-                <h3 className="font-bold text-slate-900 text-sm uppercase tracking-wider flex items-center gap-2">
+              <div className="bg-white border border-slate-200 rounded-3xl p-4 sm:p-6 shadow-2xs space-y-4">
+                <h3 className="font-bold text-slate-900 text-xs sm:text-sm uppercase tracking-wider flex items-center gap-2">
                   <ShieldCheck className="w-4 h-4 text-[#006B3F]" /> Delivery Confirmation
                 </h3>
-                <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-2 text-xs">
+                <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3.5 sm:p-4 space-y-2 text-xs">
                   <div className="flex justify-between text-slate-600">
                     <span>Logistics Method:</span>
                     <span className="font-bold text-slate-900">{tx.logistics || 'CAMPUS_DIRECT'}</span>
@@ -642,25 +629,25 @@ export default function EscrowPaymentPage() {
                   {tx.ussd_pin && (
                     <div className="flex justify-between text-slate-600 font-mono border-t border-slate-200 pt-2">
                       <span>Offline USSD PIN:</span>
-                      <span className="bg-emerald-100 text-[#006B3F] border border-emerald-200 px-2 py-0.5 rounded-lg font-extrabold text-xs">
+                      <span className="bg-emerald-100 text-[#006B3F] border border-emerald-200 px-2 py-0.5 rounded-lg font-extrabold text-[11px]">
                         *329*{tx.ussd_pin}#
                       </span>
                     </div>
                   )}
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
                   <button
                     onClick={handleConfirmDelivery}
                     disabled={isProcessing}
-                    className="w-full bg-[#006B3F] hover:bg-[#005432] text-white font-bold py-3 px-4 rounded-2xl text-xs transition-all shadow-md flex items-center justify-center gap-2 disabled:opacity-50"
+                    className="w-full bg-[#006B3F] hover:bg-[#005432] text-white font-bold py-2.5 sm:py-3 px-4 rounded-2xl text-xs transition-all shadow-md flex items-center justify-center gap-2 disabled:opacity-50"
                   >
                     <Check className="w-4 h-4" />
                     Confirm Delivery & Release
                   </button>
                   <button
                     onClick={() => setShowDisputeModal(true)}
-                    className="w-full bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold py-3 px-4 rounded-2xl text-xs transition-all flex items-center justify-center gap-2"
+                    className="w-full bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold py-2.5 sm:py-3 px-4 rounded-2xl text-xs transition-all flex items-center justify-center gap-2"
                   >
                     <AlertTriangle className="w-4 h-4" />
                     Raise Dispute
@@ -669,86 +656,73 @@ export default function EscrowPaymentPage() {
               </div>
             )}
 
-            {/* ---- BUYER VIEW: RELEASED ---- */}
+            {/* BUYER VIEW: RELEASED */}
             {isBuyer && tx.state === 'RELEASED' && (
-              <div className="bg-emerald-50 border border-emerald-200 rounded-3xl p-6 shadow-sm space-y-2">
-                <div className="flex items-center gap-2 text-[#006B3F] font-extrabold text-sm">
-                  <CheckCircle2 className="w-5 h-5" /> Delivery Confirmed. Funds Released to Seller.
+              <div className="bg-emerald-50 border border-emerald-200 rounded-3xl p-4 sm:p-6 shadow-2xs space-y-2">
+                <div className="flex items-center gap-2 text-[#006B3F] font-extrabold text-xs sm:text-sm">
+                  <CheckCircle2 className="w-5 h-5 shrink-0" /> Delivery Confirmed. Funds Released to Seller.
                 </div>
                 <p className="text-xs text-slate-600">
-                  This escrow contract is now closed. Thank you for using Blaze Escrow!
+                  This escrow contract is closed. Thank you for using Blaze Escrow!
                 </p>
               </div>
             )}
 
-            {/* ---- DISPUTED state — visible to all parties ---- */}
+            {/* DISPUTED state */}
             {tx.state === 'DISPUTED' && (
-              <div className="bg-white border border-rose-200 rounded-3xl p-6 shadow-sm space-y-4">
-                <h3 className="font-bold text-rose-700 text-sm uppercase tracking-wider flex items-center gap-2">
+              <div className="bg-white border border-rose-200 rounded-3xl p-4 sm:p-6 shadow-2xs space-y-3.5">
+                <h3 className="font-bold text-rose-700 text-xs sm:text-sm uppercase tracking-wider flex items-center gap-2">
                   <AlertTriangle className="w-4 h-4" /> Dispute Filed — Funds Frozen
                 </h3>
                 {dispute && (
-                  <div className="bg-rose-50 border border-rose-200 rounded-2xl p-4 space-y-2 text-xs">
+                  <div className="bg-rose-50 border border-rose-200 rounded-2xl p-3.5 sm:p-4 space-y-2 text-xs">
                     <div className="flex justify-between text-rose-700">
                       <span className="font-bold">Dispute Reason:</span>
                       <span className="font-mono">{dispute.reason}</span>
                     </div>
-                    <p className="text-slate-600 leading-relaxed">{dispute.description}</p>
+                    <p className="text-slate-600 leading-relaxed text-[11px] sm:text-xs">{dispute.description}</p>
                     {dispute.ai_score && (
                       <div className="pt-2 border-t border-rose-200">
-                        <p className="font-bold text-rose-700">AI Recommendation: <span className="text-slate-900">{dispute.ai_score.recommendation}</span></p>
-                        <p className="text-slate-500 leading-relaxed mt-1">{dispute.ai_score.reasoning}</p>
+                        <p className="font-bold text-rose-700 text-[11px]">AI Recommendation: <span className="text-slate-900">{dispute.ai_score.recommendation}</span></p>
+                        <p className="text-slate-500 leading-relaxed text-[11px] mt-0.5">{dispute.ai_score.reasoning}</p>
                       </div>
                     )}
                   </div>
                 )}
-                <p className="text-xs text-slate-500">
-                  Ecobank Compliance team will review and resolve within 48–72 hours. Funds remain frozen until resolution.
+                <p className="text-[11px] text-slate-500">
+                  Ecobank Compliance team will review and resolve within 48–72 hours.
                 </p>
-              </div>
-            )}
-
-            {/* ---- Guest CTA on non-CREATED states ---- */}
-            {isGuest && tx.state !== 'CREATED' && (
-              <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-3 text-center">
-                <p className="text-xs text-slate-600">Sign in to track your role in this escrow contract.</p>
-                <button
-                  onClick={openAuthModal}
-                  className="px-6 py-2.5 bg-[#006B3F] hover:bg-[#005432] text-white font-bold rounded-2xl text-xs shadow-md"
-                >
-                  Sign In
-                </button>
               </div>
             )}
 
           </div>
 
           {/* Sidebar */}
-          <div className="space-y-6">
-            <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm space-y-4 text-xs">
-              <h3 className="font-bold text-slate-900 text-sm uppercase tracking-wider flex items-center gap-2">
+          <div className="space-y-4 sm:space-y-6">
+            <div className="bg-white border border-slate-200 rounded-3xl p-4 sm:p-5 shadow-2xs space-y-3 text-xs">
+              <h3 className="font-bold text-slate-900 text-xs uppercase tracking-wider flex items-center gap-2">
                 <Lock className="w-4 h-4 text-[#006B3F]" /> Vault Guarantees
               </h3>
-              <div className="space-y-3 text-slate-600">
-                <div className="flex items-start gap-2.5">
-                  <div className="w-5 h-5 rounded-full bg-emerald-100 text-[#006B3F] flex items-center justify-center font-mono font-bold text-[11px] shrink-0 mt-0.5">1</div>
+              <div className="space-y-2.5 text-slate-600 text-[11px] sm:text-xs">
+                <div className="flex items-start gap-2">
+                  <div className="w-4 h-4 rounded-full bg-emerald-100 text-[#006B3F] flex items-center justify-center font-mono font-bold text-[10px] shrink-0 mt-0.5">1</div>
                   <p className="leading-relaxed">Funds locked in Ecobank 256-bit vault.</p>
                 </div>
-                <div className="flex items-start gap-2.5">
-                  <div className="w-5 h-5 rounded-full bg-emerald-100 text-[#006B3F] flex items-center justify-center font-mono font-bold text-[11px] shrink-0 mt-0.5">2</div>
+                <div className="flex items-start gap-2">
+                  <div className="w-4 h-4 rounded-full bg-emerald-100 text-[#006B3F] flex items-center justify-center font-mono font-bold text-[10px] shrink-0 mt-0.5">2</div>
                   <p className="leading-relaxed">Dispatched with tracking code or *329# USSD PIN.</p>
                 </div>
-                <div className="flex items-start gap-2.5">
-                  <div className="w-5 h-5 rounded-full bg-emerald-100 text-[#006B3F] flex items-center justify-center font-mono font-bold text-[11px] shrink-0 mt-0.5">3</div>
+                <div className="flex items-start gap-2">
+                  <div className="w-4 h-4 rounded-full bg-emerald-100 text-[#006B3F] flex items-center justify-center font-mono font-bold text-[10px] shrink-0 mt-0.5">3</div>
                   <p className="leading-relaxed">Buyer verifies item to release payout.</p>
                 </div>
               </div>
             </div>
 
             {/* Contract metadata */}
-            <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm space-y-3 text-xs font-mono">
-              <h3 className="font-extrabold text-slate-900 text-[11px] uppercase tracking-wider">Contract Details</h3>
-              <div className="space-y-2 text-slate-600">
+            <div className="bg-white border border-slate-200 rounded-3xl p-4 sm:p-5 shadow-2xs space-y-2.5 text-xs font-mono">
+              <h3 className="font-extrabold text-slate-900 text-[10px] uppercase tracking-wider">Contract Details</h3>
+              <div className="space-y-1.5 text-slate-600 text-[11px]">
                 <div className="flex justify-between">
                   <span>Status:</span>
                   <span className="font-bold text-slate-900 uppercase">{tx.state}</span>
@@ -775,16 +749,16 @@ export default function EscrowPaymentPage() {
 
       {/* DISPUTE MODAL */}
       {showDisputeModal && (
-        <div className="fixed inset-0 z-50 glass-modal flex items-center justify-center p-4">
-          <div className="bg-white border border-slate-200 rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-4 relative">
+        <div className="fixed inset-0 z-50 glass-modal flex items-center justify-center p-3.5 sm:p-4">
+          <div className="bg-white border border-slate-200 rounded-3xl max-w-lg w-full p-5 sm:p-6 shadow-2xl space-y-4 relative">
             <button
               onClick={() => setShowDisputeModal(false)}
-              className="absolute top-4 right-4 p-2 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500"
+              className="absolute top-4 right-4 p-1.5 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500"
             >
               <X className="w-4 h-4" />
             </button>
 
-            <h3 className="font-bold text-slate-900 text-base flex items-center gap-2">
+            <h3 className="font-bold text-slate-900 text-sm sm:text-base flex items-center gap-2">
               <AlertTriangle className="w-5 h-5 text-rose-600" /> Raise Escrow Dispute
             </h3>
             <p className="text-xs text-slate-500">
@@ -797,39 +771,41 @@ export default function EscrowPaymentPage() {
                 <select
                   value={disputeReason}
                   onChange={(e) => setDisputeReason(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-900 font-medium"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-900 font-medium text-xs"
                 >
-                  <option value="ITEM_NOT_RECEIVED">Item Not Received / Non-Delivery</option>
-                  <option value="ITEM_DEFECTIVE">Item Defective / Damaged in Transit</option>
-                  <option value="WRONG_ITEM">Wrong Item Delivered</option>
-                  <option value="COUNTERFEIT">Counterfeit Item</option>
+                  <option value="ITEM_DEFECTIVE">Item Defective / Not Working</option>
+                  <option value="WRONG_ITEM">Received Wrong Item</option>
+                  <option value="NOT_DELIVERED">Package Never Delivered</option>
+                  <option value="COUNTERFEIT">Counterfeit / Fake Product</option>
                 </select>
               </div>
+
               <div>
-                <label className="block text-slate-700 font-bold mb-1">Detailed Explanation</label>
+                <label className="block text-slate-700 font-bold mb-1">Dispute Description & Evidence Details</label>
                 <textarea
                   required
-                  rows={4}
+                  rows={3}
                   value={disputeDesc}
                   onChange={(e) => setDisputeDesc(e.target.value)}
-                  placeholder="Describe the defect or issue in detail..."
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-slate-900 placeholder-slate-400 focus:outline-none focus:border-rose-500 font-medium"
+                  placeholder="Describe the issue in detail..."
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-900 text-xs"
                 />
               </div>
-              <div className="flex items-center justify-end gap-3 pt-2">
+
+              <div className="flex gap-2 pt-2">
                 <button
                   type="button"
                   onClick={() => setShowDisputeModal(false)}
-                  className="px-4 py-2.5 rounded-xl bg-slate-100 text-slate-700 font-bold"
+                  className="w-1/2 py-2.5 rounded-xl border border-slate-200 text-slate-700 font-bold"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={isProcessing}
-                  className="px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold shadow-md"
+                  className="w-1/2 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold shadow-md disabled:opacity-50"
                 >
-                  Submit Dispute
+                  {isProcessing ? 'Submitting...' : 'Submit Dispute'}
                 </button>
               </div>
             </form>
