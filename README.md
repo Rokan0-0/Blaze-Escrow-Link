@@ -10,6 +10,12 @@
 
 ---
 
+## 📖 Collaborator & Developer Handover
+- **Comprehensive Handover Guide**: [`COLLABORATOR_HANDOVER.md`](./COLLABORATOR_HANDOVER.md) — Architectural overview, state machine, trust engine, API routes, and feature map.
+- **Login, Signup & Credentials Guide**: [`pswd.txt`](./pswd.txt) — Credentials for demo accounts, OTP bypass codes, Supabase keys, and step-by-step sign up instructions.
+
+---
+
 ## 🌟 Key Features
 
 ### 🛒 Instant Escrow Payment Links

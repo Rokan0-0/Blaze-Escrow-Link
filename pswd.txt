@@ -1,0 +1,79 @@
+================================================================================
+BLAZE ESCROW-LINK — LOGIN, SIGNUP & CREDENTIALS GUIDE
+================================================================================
+
+1. QUICK DEMO ACCESS (JUDGE SWITCHER)
+--------------------------------------------------------------------------------
+The application features a 1-click Role Switcher Bar at the top of every page.
+You can instantly swap context between Seller, Buyer, and Compliance Admin 
+without manually typing credentials:
+
+- Top Bar Switcher Options:
+  • Merchant (Seller): Amina Bello (ThriftPlug Unilag • Silver Tier)
+  • Buyer (Student): Tunde Bakare (₦211,000 Wallet Balance)
+  • Admin (Compliance): Ecobank Compliance Auditor
+
+--------------------------------------------------------------------------------
+2. PRE-CONFIGURED DEMO ACCOUNTS (PHONE + OTP LOGIN)
+--------------------------------------------------------------------------------
+To log in manually using the Auth Modal or Login Page:
+
+[ACCOUNT 1: SELLER / MERCHANT]
+- Role: Merchant (Seller)
+- Full Name: Amina Bello
+- Phone Number: +2348000000001 (or 08000000001)
+- OTP Code: 000000 (Universal Demo Bypass Code)
+- Context: Gold Tier merchant with active payment link (#escrow-vintage-denim-99a2)
+
+[ACCOUNT 2: BUYER / CUSTOMER]
+- Role: Buyer (Customer)
+- Full Name: Tunde Bakare
+- Phone Number: +2348000000002 (or 08000000002)
+- OTP Code: 000000 (Universal Demo Bypass Code)
+- Context: Buyer with active orders & open dispute (#escrow-macbook-keyboard-3m9x)
+
+[ACCOUNT 3: ECOBANK COMPLIANCE ADMIN]
+- Role: Compliance Admin
+- Full Name: Ecobank Compliance Auditor
+- Phone Number: +2348000000003 (or 08000000003)
+- OTP Code: 000000 (Universal Demo Bypass Code)
+- Context: Access to `/admin` dispute arbitration hub & AI recommendation engine
+
+--------------------------------------------------------------------------------
+3. SIGN UP PROCEDURE FOR NEW USERS
+--------------------------------------------------------------------------------
+1. Click "Get Started" or "Sign Up" in the navigation header or modal.
+2. Enter Full Name (e.g., "Kemi Adebayo").
+3. Enter Mobile Phone Number (e.g., "+2348123456789").
+4. Optional: Enter Ecobank 10-digit Account Number (+15 Trust Score boost).
+5. Click "Create Account & Send Code".
+6. Enter OTP Code: 000000
+7. Click "Confirm & Complete Registration".
+8. You will be automatically authenticated and redirected to `/dashboard`.
+
+--------------------------------------------------------------------------------
+4. SUPABASE DATABASE & ENVIRONMENT KEYS (.env.local)
+--------------------------------------------------------------------------------
+App Base URL: http://localhost:3000
+
+Supabase URL:
+NEXT_PUBLIC_SUPABASE_URL=https://dzmymzbmoeyuaxfgwqdm.supabase.co
+
+Supabase Anon Key:
+NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR6bXltemJtb2V5dWF4Zmd3cWRtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg4OTgwMTcsImV4cCI6MjEwNDQ3NDAxN30.UUuG1inidcot9xzq8tG51i71iYfJNclqOUSWM_IA5Q0
+
+Supabase Service Role Key:
+SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR6bXltemJtb2V5dWF4Zmd3cWRtIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4ODg5ODAxNywiZXhwIjoyMTA0NDc0MDE3fQ.nBPsPSnuRHWlEnCpuPFeYQ6lNVXjU_Kfr8byiAkZ_z8
+
+Demo Credentials Variables:
+DEMO_PHONE_SELLER=+2348000000001
+DEMO_PHONE_BUYER=+2348000000002
+DEMO_PHONE_ADMIN=+2348000000003
+DEMO_OTP_BYPASS=000000
+
+--------------------------------------------------------------------------------
+5. DATABASE SCHEMA & SEED FILES
+--------------------------------------------------------------------------------
+- Schema DDL File: ./supabase/schema.sql
+- Initial Seed Data: ./supabase/seed.sql
+================================================================================
