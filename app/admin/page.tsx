@@ -741,6 +741,12 @@ function AdminContent() {
                   const currentNote = resolutionNotes[d.id] || '';
                   const isNoteValid = currentNote.trim().length >= 10;
                   const isExpanded = isDisputeExpanded(d);
+                  const isDisputeClosed =
+                    d.status.startsWith('RESOLVED') ||
+                    ['REFUNDED', 'RELEASED', 'PARTIAL_REFUND'].includes(tx?.state || '');
+                  const displayStatus = isDisputeClosed
+                    ? (d.status.startsWith('RESOLVED') ? d.status : tx?.state === 'REFUNDED' ? 'RESOLVED_BUYER' : 'RESOLVED_SELLER')
+                    : d.status;
 
                   return (
                     <div
@@ -776,12 +782,12 @@ function AdminContent() {
                         <div className="flex items-center gap-2.5 shrink-0">
                           <span
                             className={`px-3 py-1 rounded-full text-xs font-mono font-bold uppercase ${
-                              d.status.startsWith('RESOLVED')
+                              isDisputeClosed
                                 ? 'bg-emerald-100 text-[#006B3F] border border-emerald-200'
                                 : 'bg-rose-100 text-rose-700 border border-rose-200 animate-pulse'
                             }`}
                           >
-                            {d.status}
+                            {displayStatus}
                           </span>
                           <button
                             type="button"
@@ -1045,7 +1051,7 @@ function AdminContent() {
                       )}
 
                       {/* RESOLUTION PATH SELECTOR & RULING ENGINE */}
-                      {d.status === 'OPEN' || d.status === 'UNDER_REVIEW' ? (
+                      {!isDisputeClosed ? (
                         <div className="space-y-4 pt-4 border-t border-slate-200">
                           {/* Resolution Path Selection Cards */}
                           <div className="space-y-2">
