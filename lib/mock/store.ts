@@ -70,6 +70,7 @@ export const INITIAL_TRANSACTIONS: EscrowTransaction[] = [
     state: 'CREATED',
     logistics: 'CAMPUS_DIRECT',
     transfer_account: '9920194810',
+    image_url: 'https://images.unsplash.com/photo-1576995853123-5a10305d93c0?w=600&auto=format&fit=crop&q=80',
     expires_at: new Date(Date.now() + 48 * 3600000).toISOString(),
     created_at: new Date(Date.now() - 2 * 3600000).toISOString(),
     updated_at: new Date(Date.now() - 2 * 3600000).toISOString(),
@@ -94,6 +95,7 @@ export const INITIAL_TRANSACTIONS: EscrowTransaction[] = [
     ussd_pin: '910283',
     payment_method: 'TRANSFER',
     transfer_account: '9920194820',
+    image_url: 'https://images.unsplash.com/photo-1600294037681-c80b4cb5b434?w=600&auto=format&fit=crop&q=80',
     expires_at: new Date(Date.now() + 24 * 3600000).toISOString(),
     dispatched_at: new Date(Date.now() - 3 * 3600000).toISOString(),
     created_at: new Date(Date.now() - 12 * 3600000).toISOString(),
@@ -118,6 +120,7 @@ export const INITIAL_TRANSACTIONS: EscrowTransaction[] = [
     tracking_id: 'GIG-LAK-90812',
     payment_method: 'WALLET',
     transfer_account: '9920194830',
+    image_url: 'https://images.unsplash.com/photo-1587829741301-dc798b83add3?w=600&auto=format&fit=crop&q=80',
     expires_at: new Date(Date.now() + 12 * 3600000).toISOString(),
     dispatched_at: new Date(Date.now() - 24 * 3600000).toISOString(),
     created_at: new Date(Date.now() - 48 * 3600000).toISOString(),
@@ -140,6 +143,13 @@ export const INITIAL_DISPUTES: Dispute[] = [
       recommendation: 'RESOLVE_BUYER',
       confidence: 88,
       reasoning: 'Buyer attached clear video showing spacebar key latency. Seller chat confirms claim of 100% working condition prior to dispatch.',
+    },
+    seller_response: {
+      statement: 'Tested unit prior to packaging via GIG Logistics (GIG-LAK-90812). Key was fully functional. Attached dispatch testing video & receipt.',
+      evidence_urls: [
+        'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=600&auto=format&fit=crop&q=80'
+      ],
+      submitted_at: new Date(Date.now() - 4 * 3600000).toISOString(),
     },
     created_at: new Date(Date.now() - 6 * 3600000).toISOString(),
   }
@@ -180,6 +190,32 @@ export const INITIAL_NOTIFICATIONS: NotificationItem[] = [
   }
 ];
 
+export const INITIAL_WITHDRAWALS: Withdrawal[] = [
+  {
+    id: 'wth_sample_01',
+    seller_id: MOCK_SELLER.id,
+    amount: 5000000, // ₦50,000
+    bank_name: 'Ecobank Nigeria',
+    account_number: '3098765432',
+    account_name: 'Amina Bello',
+    status: 'PENDING',
+    reference: 'ECB-WTH-882910',
+    created_at: new Date(Date.now() - 2 * 3600000).toISOString(),
+  },
+  {
+    id: 'wth_sample_02',
+    seller_id: MOCK_SELLER.id,
+    amount: 12000000, // ₦120,000
+    bank_name: 'Guaranty Trust Bank',
+    account_number: '0123456789',
+    account_name: 'Amina Bello',
+    status: 'COMPLETED',
+    reference: 'ECB-WTH-773412',
+    created_at: new Date(Date.now() - 48 * 3600000).toISOString(),
+    processed_at: new Date(Date.now() - 24 * 3600000).toISOString(),
+  },
+];
+
 // Memory/localStorage state manager helper
 class LocalStore {
   private profiles: Map<string, Profile> = new Map();
@@ -196,6 +232,7 @@ class LocalStore {
     INITIAL_TRANSACTIONS.forEach((tx) => this.transactions.set(tx.id, tx));
     INITIAL_DISPUTES.forEach((d) => this.disputes.set(d.id, d));
     this.notifications = [...INITIAL_NOTIFICATIONS];
+    this.withdrawals = [...INITIAL_WITHDRAWALS];
 
     if (typeof window !== 'undefined') {
       this.loadFromStorage();
@@ -297,6 +334,7 @@ class LocalStore {
     category: string;
     amount: number; // kobo
     logistics?: 'GIG' | 'KWIK' | 'SENDBOX' | 'CAMPUS_DIRECT' | 'OTHER';
+    image_url?: string;
   }): EscrowTransaction {
     const seller = this.getProfileById(params.seller_id) || MOCK_SELLER;
     const fee = calculateEscrowFee(params.amount);
@@ -315,6 +353,7 @@ class LocalStore {
       net_amount: params.amount - fee,
       state: 'CREATED',
       logistics: params.logistics || 'CAMPUS_DIRECT',
+      image_url: params.image_url,
       transfer_account: `992${Math.floor(10000000 + Math.random() * 90000000)}`,
       expires_at: new Date(Date.now() + 48 * 3600000).toISOString(),
       created_at: new Date().toISOString(),
@@ -381,10 +420,9 @@ class LocalStore {
       bank_name: bankName,
       account_number: accountNumber,
       account_name: accountName,
-      status: 'COMPLETED',
+      status: 'PENDING',
       reference: `ECB-WTH-${Math.floor(100000 + Math.random() * 900000)}`,
       created_at: new Date().toISOString(),
-      processed_at: new Date().toISOString(),
     };
     this.withdrawals.unshift(w);
     
@@ -396,8 +434,8 @@ class LocalStore {
     }
     this.addNotification(
       sellerId,
-      'Bank Payout Completed',
-      `₦${(amountKobo / 100).toLocaleString()} successfully transferred to ${bankName} (${accountNumber}). Ref: ${w.reference}`,
+      'Bank Payout Requested',
+      `₦${(amountKobo / 100).toLocaleString()} payout request submitted for ${bankName} (${accountNumber}). Ref: ${w.reference}`,
       'PAYMENT'
     );
     this.saveToStorage();
@@ -406,6 +444,77 @@ class LocalStore {
 
   getWithdrawals(sellerId: string): Withdrawal[] {
     return this.withdrawals.filter(w => w.seller_id === sellerId);
+  }
+
+  // Admin Operations
+  getAllProfiles(): Profile[] {
+    return Array.from(this.profiles.values());
+  }
+
+  toggleUserSuspension(userId: string): Profile | undefined {
+    const profile = this.profiles.get(userId);
+    if (profile) {
+      profile.is_suspended = !profile.is_suspended;
+      this.saveProfile(profile);
+    }
+    return profile;
+  }
+
+  adjustTrustScore(userId: string, delta: number): Profile | undefined {
+    const profile = this.profiles.get(userId);
+    if (profile) {
+      profile.trust_score = Math.max(0, Math.min(100, profile.trust_score + delta));
+      if (profile.trust_score >= 80) profile.trust_tier = 'Platinum';
+      else if (profile.trust_score >= 60) profile.trust_tier = 'Gold';
+      else if (profile.trust_score >= 40) profile.trust_tier = 'Silver';
+      else profile.trust_tier = 'Bronze';
+      this.saveProfile(profile);
+    }
+    return profile;
+  }
+
+  getAllWithdrawals(): Withdrawal[] {
+    return [...this.withdrawals].sort(
+      (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    );
+  }
+
+  approveWithdrawal(id: string): Withdrawal | undefined {
+    const w = this.withdrawals.find((item) => item.id === id);
+    if (w) {
+      w.status = 'COMPLETED';
+      w.processed_at = new Date().toISOString();
+      this.addNotification(
+        w.seller_id,
+        'Withdrawal Approved & Sent',
+        `Your withdrawal of ₦${(w.amount / 100).toLocaleString()} to ${w.bank_name} (${w.account_number}) has been approved and processed. Ref: ${w.reference}`,
+        'PAYMENT'
+      );
+      this.saveToStorage();
+    }
+    return w;
+  }
+
+  rejectWithdrawal(id: string): Withdrawal | undefined {
+    const w = this.withdrawals.find((item) => item.id === id);
+    if (w && w.status !== 'FAILED') {
+      w.status = 'FAILED';
+      w.processed_at = new Date().toISOString();
+      // Refund balance to seller
+      const profile = this.getProfileById(w.seller_id);
+      if (profile) {
+        profile.simulated_balance += w.amount;
+        this.saveProfile(profile);
+      }
+      this.addNotification(
+        w.seller_id,
+        'Withdrawal Rejected & Refunded',
+        `Your withdrawal request of ₦${(w.amount / 100).toLocaleString()} was rejected by Compliance. Funds have been refunded to your wallet balance.`,
+        'PAYMENT'
+      );
+      this.saveToStorage();
+    }
+    return w;
   }
 }
 

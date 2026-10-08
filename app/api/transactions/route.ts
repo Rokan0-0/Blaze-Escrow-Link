@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { seller_id, title, description, category, amount, logistics } = body;
+    const { seller_id, title, description, category, amount, logistics, image_url } = body;
 
     if (!title || !amount || amount <= 0) {
       return NextResponse.json({ error: 'Title and amount required' }, { status: 400 });
@@ -68,6 +68,7 @@ export async function POST(request: NextRequest) {
       net_amount: amount - fee,
       state: 'CREATED',
       logistics: logistics || 'CAMPUS_DIRECT',
+      image_url: image_url || undefined,
       transfer_account: `992${Math.floor(10000000 + Math.random() * 90000000)}`,
       expires_at: new Date(Date.now() + 48 * 3600000).toISOString(),
       created_at: new Date().toISOString(),

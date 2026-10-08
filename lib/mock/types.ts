@@ -12,6 +12,7 @@ export interface Profile {
   blaze_account?: string;
   credit_limit: number; // kobo
   simulated_balance: number; // kobo
+  is_suspended?: boolean;
   created_at: string;
 }
 
@@ -33,6 +34,7 @@ export interface EscrowTransaction {
   tracking_id?: string;
   ussd_pin?: string;
   payment_method?: 'WALLET' | 'TRANSFER' | 'CARD';
+  image_url?: string;
   transfer_account?: string;
   expires_at: string;
   dispatched_at?: string;
@@ -55,6 +57,11 @@ export interface Dispute {
     recommendation: 'RESOLVE_BUYER' | 'RESOLVE_SELLER' | 'MANUAL_REVIEW';
     confidence: number;
     reasoning: string;
+  };
+  seller_response?: {
+    statement: string;
+    evidence_urls: string[];
+    submitted_at: string;
   };
   resolution_note?: string;
   resolved_by?: string;

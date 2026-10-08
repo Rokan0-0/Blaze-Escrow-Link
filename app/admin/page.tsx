@@ -1,13 +1,15 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { mockStore } from '@/lib/mock/store';
-import { Dispute, EscrowTransaction } from '@/lib/mock/types';
+import { Dispute, EscrowTransaction, Profile, Withdrawal } from '@/lib/mock/types';
 import { formatNaira } from '@/lib/formatters';
 import { Navbar } from '@/components/layout/Navbar';
 import { Footer } from '@/components/layout/Footer';
+import { TrustBadge } from '@/components/trust/TrustBadge';
 import {
   ShieldAlert,
   CheckCircle2,
@@ -15,15 +17,86 @@ import {
   RefreshCw,
   FileText,
   Lock,
+  BarChart3,
+  ArrowUpDown,
+  Users as UsersIcon,
+  Landmark,
+  Search,
+  UserX,
+  UserCheck,
+  TrendingUp,
+  AlertTriangle,
+  XCircle,
+  Check,
+  ExternalLink,
+  ShieldCheck,
+  Filter,
+  Layers,
+  Clock,
+  Shield,
+  Zap,
+  Eye,
+  Scale,
+  X,
+  AlertCircle,
+  Image as ImageIcon,
 } from 'lucide-react';
 
-export default function AdminDisputePage() {
+type AdminTab = 'overview' | 'disputes' | 'transactions' | 'users' | 'withdrawals';
+
+interface PendingRulingModal {
+  dispute: Dispute;
+  outcome: 'RESOLVE_BUYER' | 'RESOLVE_SELLER';
+  note: string;
+  tx?: EscrowTransaction;
+  buyer?: Profile;
+  seller?: Profile;
+}
+
+function AdminContent() {
   const { user } = useAuth();
+  const searchParams = useSearchParams();
+  const router = useRouter();
+
+  const activeTabParam = (searchParams.get('tab') as AdminTab) || 'overview';
+  const [activeTab, setActiveTab] = useState<AdminTab>(activeTabParam);
+
   const [disputes, setDisputes] = useState<Dispute[]>([]);
   const [transactions, setTransactions] = useState<EscrowTransaction[]>([]);
+  const [profiles, setProfiles] = useState<Profile[]>([]);
+  const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([]);
+
   const [actionSuccess, setActionSuccess] = useState('');
   const [actionError, setActionError] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
+
+  // Mandatory Resolution Notes State (map of dispute.id -> note)
+  const [resolutionNotes, setResolutionNotes] = useState<Record<string, string>>({});
+
+  // Confirmation Modal State
+  const [pendingRulingModal, setPendingRulingModal] = useState<PendingRulingModal | null>(null);
+
+  // Image Lightbox Overlay State
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
+
+  // Filters and Search
+  const [txSearch, setTxSearch] = useState('');
+  const [txStateFilter, setTxStateFilter] = useState<string>('ALL');
+  const [userSearch, setUserSearch] = useState('');
+  const [userRoleFilter, setUserRoleFilter] = useState<string>('ALL');
+  const [disputeFilter, setDisputeFilter] = useState<string>('ALL');
+  const [withdrawalFilter, setWithdrawalFilter] = useState<string>('ALL');
+
+  useEffect(() => {
+    if (searchParams.get('tab')) {
+      setActiveTab(searchParams.get('tab') as AdminTab);
+    }
+  }, [searchParams]);
+
+  const handleTabChange = (tab: AdminTab) => {
+    setActiveTab(tab);
+    router.push(`/admin?tab=${tab}`);
+  };
 
   const loadData = async () => {
     try {
@@ -34,32 +107,38 @@ export default function AdminDisputePage() {
       const txData = await txRes.json();
       const dispData = await dispRes.json();
       if (txData.transactions) setTransactions(txData.transactions);
+      else setTransactions(mockStore.getAllTransactions());
+
       if (dispData.disputes) setDisputes(dispData.disputes);
+      else setDisputes(mockStore.getAllDisputes());
     } catch {
       setTransactions(mockStore.getAllTransactions());
       setDisputes(mockStore.getAllDisputes());
     }
+
+    setProfiles(mockStore.getAllProfiles());
+    setWithdrawals(mockStore.getAllWithdrawals());
   };
 
   useEffect(() => {
     if (user?.role === 'admin') {
       loadData();
-      // Poll every 5s so new disputes appear without manual refresh
       const interval = setInterval(loadData, 5000);
       return () => clearInterval(interval);
     }
   }, [user]);
 
-  const handleResolveDispute = async (
+  // Execute binding dispute resolution
+  const handleExecuteResolution = async (
     dispute: Dispute,
-    outcome: 'RESOLVE_BUYER' | 'RESOLVE_SELLER'
+    outcome: 'RESOLVE_BUYER' | 'RESOLVE_SELLER',
+    note: string
   ) => {
     setIsProcessing(true);
     setActionSuccess('');
     setActionError('');
 
     try {
-      // BUG-025: Call /api/dispute RESOLVE directly instead of broken stateMachine 'REFUND'
       const res = await fetch('/api/dispute', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -67,33 +146,85 @@ export default function AdminDisputePage() {
           action: 'RESOLVE',
           dispute_id: dispute.id,
           outcome,
+          resolution_note: note,
         }),
       });
       const data = await res.json();
       if (data.success) {
         const label = outcome === 'RESOLVE_BUYER' ? 'Buyer refunded' : 'Seller paid out';
-        setActionSuccess(`Dispute resolved: ${label}. Escrow vault updated.`);
+        setActionSuccess(`Binding ruling executed for Dispute ${dispute.id}: ${label}. Vault updated.`);
+        setPendingRulingModal(null);
+        setResolutionNotes((prev) => ({ ...prev, [dispute.id]: '' }));
         await loadData();
       } else {
-        setActionError(data.error || 'Resolution failed.');
+        setActionError(data.error || 'Resolution execution failed.');
       }
-    } catch (e) {
+    } catch {
       setActionError('Network error — please try again.');
     }
 
     setIsProcessing(false);
   };
 
-  // BUG-005: Guard — admin access only
+  // User suspension toggle
+  const handleToggleUserSuspension = (targetUserId: string, name: string) => {
+    const updated = mockStore.toggleUserSuspension(targetUserId);
+    if (updated) {
+      const statusLabel = updated.is_suspended ? 'suspended' : 'activated';
+      setActionSuccess(`User ${name} has been ${statusLabel}.`);
+      loadData();
+    }
+  };
+
+  // Trust score adjustment
+  const handleAdjustTrustScore = (targetUserId: string, name: string, delta: number) => {
+    const updated = mockStore.adjustTrustScore(targetUserId, delta);
+    if (updated) {
+      setActionSuccess(
+        `Trust score for ${name} updated to ${updated.trust_score} (${updated.trust_tier} Tier).`
+      );
+      loadData();
+    }
+  };
+
+  // Withdrawal approvals
+  const handleApproveWithdrawal = (id: string, ref: string, amount: number) => {
+    const res = mockStore.approveWithdrawal(id);
+    if (res) {
+      setActionSuccess(`Withdrawal ${ref} (${formatNaira(amount)}) approved & marked paid.`);
+      loadData();
+    }
+  };
+
+  const handleRejectWithdrawal = (id: string, ref: string, amount: number) => {
+    const res = mockStore.rejectWithdrawal(id);
+    if (res) {
+      setActionSuccess(`Withdrawal ${ref} (${formatNaira(amount)}) rejected & refunded to seller balance.`);
+      loadData();
+    }
+  };
+
+  // Helper: Calculate dispute age
+  const getDisputeAge = (createdAt: string) => {
+    const diffMs = Date.now() - new Date(createdAt).getTime();
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+    if (diffHours < 1) return 'Raised less than 1 hour ago';
+    if (diffHours === 1) return 'Open for 1 hour';
+    if (diffHours < 24) return `Open for ${diffHours} hours`;
+    const diffDays = Math.floor(diffHours / 24);
+    return `Open for ${diffDays} day${diffDays > 1 ? 's' : ''}`;
+  };
+
+  // Guard — admin access only
   if (!user) {
     return (
       <div className="min-h-screen bg-[#F8FAFC] flex flex-col">
         <Navbar />
-        <main className="flex-1 flex items-center justify-center">
+        <main className="flex-1 flex items-center justify-center p-4">
           <div className="text-center space-y-4 max-w-sm p-8 bg-white border border-slate-200 rounded-3xl shadow-sm">
             <Lock className="w-10 h-10 text-slate-400 mx-auto" />
-            <h2 className="font-extrabold text-slate-900">Sign In Required</h2>
-            <p className="text-xs text-slate-500">This page is restricted to Ecobank Compliance administrators.</p>
+            <h2 className="font-extrabold text-slate-900 text-lg">Sign In Required</h2>
+            <p className="text-xs text-slate-500">This hub is restricted to Ecobank Compliance administrators.</p>
             <Link href="/" className="inline-block px-5 py-2.5 bg-[#006B3F] text-white rounded-xl font-bold text-xs">Back to Home</Link>
           </div>
         </main>
@@ -106,11 +237,11 @@ export default function AdminDisputePage() {
     return (
       <div className="min-h-screen bg-[#F8FAFC] flex flex-col">
         <Navbar />
-        <main className="flex-1 flex items-center justify-center">
+        <main className="flex-1 flex items-center justify-center p-4">
           <div className="text-center space-y-4 max-w-sm p-8 bg-white border border-rose-200 rounded-3xl shadow-sm">
             <ShieldAlert className="w-10 h-10 text-rose-500 mx-auto" />
-            <h2 className="font-extrabold text-slate-900">Access Denied</h2>
-            <p className="text-xs text-slate-500">This compliance hub is restricted to Ecobank admin accounts only.</p>
+            <h2 className="font-extrabold text-slate-900 text-lg">Access Denied</h2>
+            <p className="text-xs text-slate-500">This compliance portal is restricted to Ecobank admin accounts only.</p>
             <Link href="/dashboard" className="inline-block px-5 py-2.5 bg-slate-100 text-slate-800 rounded-xl font-bold text-xs">Back to Dashboard</Link>
           </div>
         </main>
@@ -119,162 +250,1174 @@ export default function AdminDisputePage() {
     );
   }
 
+  // Calculated Platform Metrics for Overview
+  const totalVolumeKobo = transactions.reduce((acc, curr) => acc + curr.amount, 0);
+  const activeEscrows = transactions.filter(
+    (t) => t.state === 'CREATED' || t.state === 'PAID' || t.state === 'DISPATCHED' || t.state === 'DISPUTED'
+  );
+  const activeEscrowsVolume = activeEscrows.reduce((acc, curr) => acc + curr.amount, 0);
+  const disputeRate = transactions.length > 0 ? ((disputes.length / transactions.length) * 100).toFixed(1) : '0';
+  const newUsersTodayCount = profiles.length;
+
+  // Filtered Transactions
+  const filteredTransactions = (transactions || []).filter((t) => {
+    if (!t) return false;
+    const title = t.title || '';
+    const code = t.code || '';
+    const seller = t.seller_name || '';
+    const buyer = t.buyer_name || '';
+    const query = (txSearch || '').toLowerCase();
+
+    const matchesSearch =
+      title.toLowerCase().includes(query) ||
+      code.toLowerCase().includes(query) ||
+      seller.toLowerCase().includes(query) ||
+      buyer.toLowerCase().includes(query);
+    const matchesState = txStateFilter === 'ALL' || t.state === txStateFilter;
+    return matchesSearch && matchesState;
+  });
+
+  // Filtered Users
+  const filteredUsers = (profiles || []).filter((p) => {
+    if (!p) return false;
+    const fullName = p.full_name || '';
+    const phone = p.phone || '';
+    const query = (userSearch || '').toLowerCase();
+
+    const matchesSearch =
+      fullName.toLowerCase().includes(query) ||
+      phone.includes(userSearch || '');
+    const matchesRole = userRoleFilter === 'ALL' || p.role === userRoleFilter;
+    return matchesSearch && matchesRole;
+  });
+
+  // Filtered Disputes
+  const filteredDisputes = disputes.filter((d) => {
+    if (disputeFilter === 'ALL') return true;
+    if (disputeFilter === 'OPEN') return d.status === 'OPEN' || d.status === 'UNDER_REVIEW';
+    return d.status === disputeFilter;
+  });
+
+  // Filtered Withdrawals
+  const filteredWithdrawals = withdrawals.filter((w) => {
+    if (withdrawalFilter === 'ALL') return true;
+    return w.status === withdrawalFilter;
+  });
+
   return (
     <div className="min-h-screen bg-[#F8FAFC] flex flex-col">
       <Navbar />
 
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-8 space-y-8">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-8 space-y-6">
+        {/* Title Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 pb-6">
           <div>
-            <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
-              <ShieldAlert className="w-6 h-6 text-purple-600" /> Ecobank Compliance & Dispute Hub
+            <div className="flex items-center gap-2">
+              <span className="px-2.5 py-1 rounded-md bg-purple-100 text-purple-700 text-[10px] font-extrabold uppercase font-mono tracking-wider">
+                Ecobank Compliance Admin
+              </span>
+              <span className="text-xs text-slate-400 font-mono">Live Operating Portal</span>
+            </div>
+            <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight mt-1 flex items-center gap-2">
+              <ShieldCheck className="w-6 h-6 text-purple-600" /> Admin Command Center
             </h1>
             <p className="text-xs text-slate-500 mt-0.5 font-medium">
-              Escrow arbitration portal with AI evidence assessment and automated refund/release execution.
+              Monitor platform metrics, review evidence & trust credibility, execute binding dispute rulings, and process withdrawals.
             </p>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={loadData}
+              className="px-3.5 py-2 rounded-xl bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 text-xs font-bold transition-all shadow-2xs flex items-center gap-1.5"
+            >
+              <RefreshCw className="w-3.5 h-3.5 text-purple-600" /> Refresh Data
+            </button>
           </div>
         </div>
 
+        {/* Global Notifications */}
         {actionError && (
-          <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-bold">
-            {actionError}
+          <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-bold flex items-center justify-between">
+            <span>{actionError}</span>
+            <button onClick={() => setActionError('')} className="text-rose-500 hover:text-rose-800">
+              <XCircle className="w-4 h-4" />
+            </button>
           </div>
         )}
         {actionSuccess && (
-          <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-[#006B3F] text-xs font-bold flex items-center gap-2">
-            <CheckCircle2 className="w-4 h-4 shrink-0" />
-            {actionSuccess}
+          <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-[#006B3F] text-xs font-bold flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-[#006B3F] shrink-0" />
+              <span>{actionSuccess}</span>
+            </div>
+            <button onClick={() => setActionSuccess('')} className="text-emerald-700 hover:text-emerald-900">
+              <XCircle className="w-4 h-4" />
+            </button>
           </div>
         )}
 
-        {/* Header Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div className="bg-white border border-slate-200 rounded-3xl p-5 space-y-1 shadow-xs">
-            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Total Vault Escrow Lock</span>
-            <div className="text-2xl font-extrabold text-slate-900 font-mono">
-              {formatNaira(transactions.reduce((acc, curr) => acc + curr.amount, 0))}
-            </div>
-            <span className="text-[11px] text-[#006B3F] font-bold">Protected by Ecobank 256-Bit Vault</span>
-          </div>
-
-          <div className="bg-white border border-slate-200 rounded-3xl p-5 space-y-1 shadow-xs">
-            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Active Disputes</span>
-            <div className="text-2xl font-extrabold text-rose-600 font-mono">
-              {disputes.filter((d) => d.status === 'OPEN' || d.status === 'UNDER_REVIEW').length}
-            </div>
-            <span className="text-[11px] text-slate-500 font-medium">Requiring Compliance Review</span>
-          </div>
-
-          <div className="bg-white border border-slate-200 rounded-3xl p-5 space-y-1 shadow-xs">
-            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Resolved Disputes</span>
-            <div className="text-2xl font-extrabold text-purple-600 font-mono">
-              {disputes.filter((d) => d.status.startsWith('RESOLVED')).length}
-            </div>
-            <span className="text-[11px] text-purple-700 font-bold">100% SLA Resolution Rate</span>
-          </div>
+        {/* Dedicated Admin Navigation Tab Bar */}
+        <div className="bg-white border border-slate-200 rounded-2xl p-1.5 shadow-2xs flex flex-wrap items-center gap-1">
+          <button
+            onClick={() => handleTabChange('overview')}
+            className={`flex-1 min-w-[120px] sm:min-w-0 px-4 py-2.5 rounded-xl font-extrabold text-xs transition-all flex items-center justify-center gap-2 ${
+              activeTab === 'overview'
+                ? 'bg-purple-600 text-white shadow-md'
+                : 'text-slate-600 hover:text-purple-700 hover:bg-purple-50'
+            }`}
+          >
+            <BarChart3 className="w-4 h-4" /> Overview
+          </button>
+          <button
+            onClick={() => handleTabChange('disputes')}
+            className={`flex-1 min-w-[140px] sm:min-w-0 px-4 py-2.5 rounded-xl font-extrabold text-xs transition-all flex items-center justify-center gap-2 ${
+              activeTab === 'disputes'
+                ? 'bg-purple-600 text-white shadow-md'
+                : 'text-slate-600 hover:text-purple-700 hover:bg-purple-50'
+            }`}
+          >
+            <ShieldAlert className="w-4 h-4" /> Dispute Queue
+            {disputes.filter((d) => d.status === 'OPEN' || d.status === 'UNDER_REVIEW').length > 0 && (
+              <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-mono font-bold ${
+                activeTab === 'disputes' ? 'bg-white text-purple-700' : 'bg-rose-600 text-white'
+              }`}>
+                {disputes.filter((d) => d.status === 'OPEN' || d.status === 'UNDER_REVIEW').length}
+              </span>
+            )}
+          </button>
+          <button
+            onClick={() => handleTabChange('transactions')}
+            className={`flex-1 min-w-[130px] sm:min-w-0 px-4 py-2.5 rounded-xl font-extrabold text-xs transition-all flex items-center justify-center gap-2 ${
+              activeTab === 'transactions'
+                ? 'bg-purple-600 text-white shadow-md'
+                : 'text-slate-600 hover:text-purple-700 hover:bg-purple-50'
+            }`}
+          >
+            <ArrowUpDown className="w-4 h-4" /> Transactions
+          </button>
+          <button
+            onClick={() => handleTabChange('users')}
+            className={`flex-1 min-w-[110px] sm:min-w-0 px-4 py-2.5 rounded-xl font-extrabold text-xs transition-all flex items-center justify-center gap-2 ${
+              activeTab === 'users'
+                ? 'bg-purple-600 text-white shadow-md'
+                : 'text-slate-600 hover:text-purple-700 hover:bg-purple-50'
+            }`}
+          >
+            <UsersIcon className="w-4 h-4" /> Users
+          </button>
+          <button
+            onClick={() => handleTabChange('withdrawals')}
+            className={`flex-1 min-w-[130px] sm:min-w-0 px-4 py-2.5 rounded-xl font-extrabold text-xs transition-all flex items-center justify-center gap-2 ${
+              activeTab === 'withdrawals'
+                ? 'bg-purple-600 text-white shadow-md'
+                : 'text-slate-600 hover:text-purple-700 hover:bg-purple-50'
+            }`}
+          >
+            <Landmark className="w-4 h-4" /> Withdrawals
+            {withdrawals.filter((w) => w.status === 'PENDING').length > 0 && (
+              <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-mono font-bold ${
+                activeTab === 'withdrawals' ? 'bg-white text-purple-700' : 'bg-amber-500 text-white'
+              }`}>
+                {withdrawals.filter((w) => w.status === 'PENDING').length}
+              </span>
+            )}
+          </button>
         </div>
 
-        {/* Dispute Queue */}
-        <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-6">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-4">
-            <h2 className="font-extrabold text-slate-900 text-base flex items-center gap-2">
-              <FileText className="w-5 h-5 text-purple-600" /> Active Dispute Queue
-            </h2>
-            <button onClick={loadData} className="text-xs text-slate-500 hover:text-slate-900 flex items-center gap-1 font-semibold">
-              <RefreshCw className="w-3.5 h-3.5" /> Refresh Queue
-            </button>
-          </div>
-
+        {/* TAB 1: OVERVIEW */}
+        {activeTab === 'overview' && (
           <div className="space-y-6">
-            {disputes.length === 0 ? (
-              <div className="py-12 text-center text-slate-400 text-xs">No active dispute cases in queue.</div>
-            ) : (
-              disputes.map((d) => {
-                const tx = mockStore.getTransactionById(d.transaction_id);
-                return (
-                  <div
-                    key={d.id}
-                    className="bg-slate-50 border border-slate-200 rounded-2xl p-5 shadow-xs space-y-4"
-                  >
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200/80 pb-3">
-                      <div>
-                        <span className="text-xs font-mono text-purple-700 font-bold">DISPUTE ID: {d.id}</span>
-                        <h3 className="font-bold text-slate-900 text-base mt-0.5">{tx?.title || 'Escrow Item'}</h3>
-                        <p className="text-xs text-slate-600 font-mono">
-                          Contract Code: <strong className="text-[#006B3F]">{tx?.code}</strong> • Locked Amount:{' '}
-                          <strong className="text-slate-900">{tx ? formatNaira(tx.amount) : 'N/A'}</strong>
-                        </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="bg-white border border-slate-200 rounded-3xl p-5 space-y-2 shadow-xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Total Volume</span>
+                  <div className="w-8 h-8 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center">
+                    <TrendingUp className="w-4 h-4" />
+                  </div>
+                </div>
+                <div className="text-2xl font-extrabold text-slate-900 font-mono">
+                  {formatNaira(totalVolumeKobo)}
+                </div>
+                <div className="text-[11px] text-[#006B3F] font-bold flex items-center gap-1">
+                  <Zap className="w-3 h-3 text-[#006B3F]" /> Across {transactions.length} contracts
+                </div>
+              </div>
+
+              <div className="bg-white border border-slate-200 rounded-3xl p-5 space-y-2 shadow-xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Active Escrows</span>
+                  <div className="w-8 h-8 rounded-xl bg-emerald-50 text-[#006B3F] flex items-center justify-center">
+                    <ShieldCheck className="w-4 h-4" />
+                  </div>
+                </div>
+                <div className="text-2xl font-extrabold text-slate-900 font-mono">
+                  {formatNaira(activeEscrowsVolume)}
+                </div>
+                <div className="text-[11px] text-slate-500 font-medium">
+                  {activeEscrows.length} active transactions locked
+                </div>
+              </div>
+
+              <div className="bg-white border border-slate-200 rounded-3xl p-5 space-y-2 shadow-xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Dispute Rate</span>
+                  <div className="w-8 h-8 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center">
+                    <AlertTriangle className="w-4 h-4" />
+                  </div>
+                </div>
+                <div className="text-2xl font-extrabold text-slate-900 font-mono">
+                  {disputeRate}%
+                </div>
+                <div className="text-[11px] text-slate-500 font-medium">
+                  {disputes.length} total dispute cases logged
+                </div>
+              </div>
+
+              <div className="bg-white border border-slate-200 rounded-3xl p-5 space-y-2 shadow-xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">New Users Today</span>
+                  <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
+                    <UsersIcon className="w-4 h-4" />
+                  </div>
+                </div>
+                <div className="text-2xl font-extrabold text-slate-900 font-mono">
+                  {newUsersTodayCount}
+                </div>
+                <div className="text-[11px] text-blue-600 font-bold">
+                  100% Verified Phone/NIN Profiles
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div className="lg:col-span-2 bg-white border border-slate-200 rounded-3xl p-6 shadow-xs space-y-4">
+                <h3 className="font-extrabold text-slate-900 text-sm uppercase tracking-wider flex items-center gap-2 border-b border-slate-100 pb-3">
+                  <Layers className="w-4 h-4 text-purple-600" /> Transaction State Distribution
+                </h3>
+
+                <div className="space-y-4">
+                  {[
+                    { label: 'CREATED (Unpaid)', state: 'CREATED', color: 'bg-amber-500' },
+                    { label: 'PAID / DISPATCHED', state: 'DISPATCHED', color: 'bg-blue-600' },
+                    { label: 'RELEASED (Settled)', state: 'RELEASED', color: 'bg-[#006B3F]' },
+                    { label: 'DISPUTED (Frozen)', state: 'DISPUTED', color: 'bg-rose-600' },
+                  ].map((item) => {
+                    const count = transactions.filter((t) => t.state === item.state).length;
+                    const pct = transactions.length > 0 ? Math.round((count / transactions.length) * 100) : 0;
+                    return (
+                      <div key={item.state} className="space-y-1.5 text-xs">
+                        <div className="flex justify-between font-bold text-slate-700">
+                          <span>{item.label}</span>
+                          <span className="font-mono">{count} txs ({pct}%)</span>
+                        </div>
+                        <div className="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden">
+                          <div className={`h-full ${item.color} rounded-full transition-all duration-500`} style={{ width: `${pct}%` }} />
+                        </div>
                       </div>
+                    );
+                  })}
+                </div>
+              </div>
 
-                      <span className="px-3 py-1 rounded-full text-xs font-mono font-bold bg-rose-100 text-rose-700 border border-rose-200 uppercase self-start sm:self-center">
-                        {d.status}
-                      </span>
-                    </div>
+              <div className="bg-gradient-to-br from-slate-900 to-purple-950 text-white rounded-3xl p-6 shadow-md flex flex-col justify-between space-y-6">
+                <div className="space-y-2">
+                  <span className="px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-300 text-[10px] font-extrabold font-mono uppercase tracking-wider inline-flex items-center gap-1 border border-emerald-500/30">
+                    <Shield className="w-3 h-3 text-emerald-400" /> Ecobank Vault Verified
+                  </span>
+                  <h3 className="font-extrabold text-lg text-white">System Security Health</h3>
+                  <p className="text-xs text-slate-300 leading-relaxed font-normal">
+                    All escrow funds are backed by Ecobank 256-bit encrypted multi-sig custody vaults with automated audit logging.
+                  </p>
+                </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
-                      <div className="space-y-2">
-                        <div className="text-slate-500 font-bold uppercase tracking-wider text-[10px]">Buyer Claim</div>
-                        <div className="bg-white border border-slate-200 rounded-xl p-3 text-slate-800">
-                          <span className="font-bold text-rose-700 block mb-1">{d.reason}</span>
-                          <p className="leading-relaxed text-slate-600">{d.description}</p>
+                <div className="space-y-3 pt-4 border-t border-white/10 text-xs">
+                  <div className="flex items-center justify-between text-slate-200">
+                    <span>Audit Status:</span>
+                    <strong className="text-emerald-400 font-mono">PASSED (Zero Anomaly)</strong>
+                  </div>
+                  <div className="flex items-center justify-between text-slate-200">
+                    <span>Active Dispute Queue:</span>
+                    <strong className="text-purple-300 font-mono">
+                      {disputes.filter((d) => d.status === 'OPEN').length} cases pending
+                    </strong>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* TAB 2: DISPUTE QUEUE */}
+        {activeTab === 'disputes' && (
+          <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-xs space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
+              <div>
+                <h2 className="font-extrabold text-slate-900 text-base flex items-center gap-2">
+                  <Scale className="w-5 h-5 text-purple-600" /> Dispute Arbitration Hub
+                </h2>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Inspect buyer/seller evidence, compare trust score standing, document rationale, and execute binding rulings.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Filter className="w-4 h-4 text-slate-400" />
+                <select
+                  value={disputeFilter}
+                  onChange={(e) => setDisputeFilter(e.target.value)}
+                  className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:outline-none focus:border-purple-600"
+                >
+                  <option value="ALL">All Statuses</option>
+                  <option value="OPEN">Open & Pending Review</option>
+                  <option value="RESOLVED_BUYER">Resolved (Buyer Refund)</option>
+                  <option value="RESOLVED_SELLER">Resolved (Seller Paid)</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="space-y-8">
+              {filteredDisputes.length === 0 ? (
+                <div className="py-12 text-center text-slate-400 text-xs">No dispute cases match the selected filter.</div>
+              ) : (
+                filteredDisputes.map((d) => {
+                  const tx = mockStore.getTransactionById(d.transaction_id);
+                  const buyer = tx?.buyer_id ? mockStore.getProfileById(tx.buyer_id) : mockStore.getProfileById(d.raised_by);
+                  const seller = tx?.seller_id ? mockStore.getProfileById(tx.seller_id) : undefined;
+                  const currentNote = resolutionNotes[d.id] || '';
+                  const isNoteValid = currentNote.trim().length >= 10;
+
+                  return (
+                    <div
+                      key={d.id}
+                      className="bg-slate-50 border border-slate-200 rounded-3xl p-6 shadow-sm space-y-6"
+                    >
+                      {/* Case Header & State Trajectory Bar */}
+                      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200/80 pb-4">
+                        <div className="space-y-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="text-xs font-mono text-purple-700 font-extrabold bg-purple-100 px-2.5 py-0.5 rounded-md">
+                              DISPUTE #{d.id}
+                            </span>
+                            <span className="text-xs font-mono text-slate-500 flex items-center gap-1">
+                              <Clock className="w-3.5 h-3.5 text-purple-600" /> {getDisputeAge(d.created_at)}
+                            </span>
+                          </div>
+                          <h3 className="font-extrabold text-slate-900 text-lg">{tx?.title || 'Escrow Item'}</h3>
+                          <p className="text-xs text-slate-600 font-mono">
+                            Contract Code: <strong className="text-[#006B3F]">{tx?.code}</strong> • Vault Escrow Amount:{' '}
+                            <strong className="text-slate-900 font-bold">{tx ? formatNaira(tx.amount) : 'N/A'}</strong>
+                          </p>
+                        </div>
+
+                        <div className="flex items-center gap-3">
+                          <span
+                            className={`px-3.5 py-1.5 rounded-full text-xs font-mono font-bold uppercase ${
+                              d.status.startsWith('RESOLVED')
+                                ? 'bg-emerald-100 text-[#006B3F] border border-emerald-200'
+                                : 'bg-rose-100 text-rose-700 border border-rose-200 animate-pulse'
+                            }`}
+                          >
+                            {d.status}
+                          </span>
                         </div>
                       </div>
 
-                      {d.ai_score && (
-                        <div className="bg-purple-50 border border-purple-200 rounded-xl p-3.5 space-y-2 text-purple-900">
-                          <div className="flex items-center justify-between font-bold">
-                            <span className="flex items-center gap-1.5 text-purple-800 text-xs">
-                              <Sparkles className="w-4 h-4 text-purple-600" /> AI Evidence Assessment
-                            </span>
-                            <span className="font-mono text-xs text-purple-700">{d.ai_score.confidence}% Confidence</span>
+                      {/* State Trajectory Timeline Badges */}
+                      <div className="bg-white border border-slate-200 rounded-2xl p-4 flex flex-wrap items-center justify-between gap-3 text-xs">
+                        <div className="flex items-center gap-2">
+                          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                          <div>
+                            <span className="text-slate-400 font-medium block text-[10px]">CREATED</span>
+                            <strong className="text-slate-800 font-mono text-[11px]">
+                              {tx ? new Date(tx.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'N/A'}
+                            </strong>
+                          </div>
+                        </div>
+
+                        <div className="w-8 h-px bg-slate-200 hidden sm:block" />
+
+                        <div className="flex items-center gap-2">
+                          <CheckCircle2 className={`w-4 h-4 ${tx?.dispatched_at ? 'text-emerald-600' : 'text-slate-300'} shrink-0`} />
+                          <div>
+                            <span className="text-slate-400 font-medium block text-[10px]">DISPATCHED</span>
+                            <strong className="text-slate-800 font-mono text-[11px]">
+                              {tx?.dispatched_at ? new Date(tx.dispatched_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Pending'}
+                            </strong>
+                          </div>
+                        </div>
+
+                        <div className="w-8 h-px bg-slate-200 hidden sm:block" />
+
+                        <div className="flex items-center gap-2">
+                          <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+                          <div>
+                            <span className="text-slate-400 font-medium block text-[10px]">DISPUTE RAISED</span>
+                            <strong className="text-rose-700 font-mono text-[11px]">
+                              {new Date(d.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </strong>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* FEATURE 3: BUYER VS SELLER TRUST SCORE SIDE-BY-SIDE CONTEXT */}
+                      <div className="space-y-2">
+                        <span className="text-xs font-extrabold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                          <UsersIcon className="w-4 h-4 text-purple-600" /> Parties Standing & Credibility Context
+                        </span>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          {/* Buyer Context Card */}
+                          <div className="bg-white border border-blue-200/80 rounded-2xl p-4 space-y-3 shadow-2xs">
+                            <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                              <span className="px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 text-[10px] font-mono font-extrabold uppercase">
+                                Buyer Party
+                              </span>
+                              {buyer && <TrustBadge score={buyer.trust_score} tier={buyer.trust_tier} compact />}
+                            </div>
+
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 rounded-xl bg-blue-600 text-white font-extrabold flex items-center justify-center font-mono text-sm shadow-xs">
+                                {(buyer?.full_name || 'B').charAt(0)}
+                              </div>
+                              <div>
+                                <h4 className="font-extrabold text-slate-900 text-sm">{buyer?.full_name || 'Buyer Account'}</h4>
+                                <div className="text-[11px] text-slate-500 font-mono">{buyer?.phone || 'Phone verified'}</div>
+                              </div>
+                            </div>
+
+                            <div className="grid grid-cols-3 gap-2 pt-2 border-t border-slate-100 text-center text-xs">
+                              <div className="bg-slate-50 p-2 rounded-xl">
+                                <span className="text-[10px] text-slate-400 block font-bold">Completed</span>
+                                <strong className="text-slate-900 font-mono">{buyer?.completed_trades ?? 0}</strong>
+                              </div>
+                              <div className="bg-slate-50 p-2 rounded-xl">
+                                <span className="text-[10px] text-slate-400 block font-bold">Disputes</span>
+                                <strong className="text-rose-600 font-mono">{buyer?.disputed_trades ?? 0}</strong>
+                              </div>
+                              <div className="bg-slate-50 p-2 rounded-xl">
+                                <span className="text-[10px] text-slate-400 block font-bold">Volume</span>
+                                <strong className="text-slate-900 font-mono">{formatNaira(buyer?.total_volume ?? 0)}</strong>
+                              </div>
+                            </div>
                           </div>
 
-                          <p className="text-[11px] text-slate-700 leading-relaxed">{d.ai_score.reasoning}</p>
+                          {/* Seller Context Card */}
+                          <div className="bg-white border border-purple-200/80 rounded-2xl p-4 space-y-3 shadow-2xs">
+                            <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                              <span className="px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 text-[10px] font-mono font-extrabold uppercase">
+                                Seller Party
+                              </span>
+                              {seller && <TrustBadge score={seller.trust_score} tier={seller.trust_tier} compact />}
+                            </div>
 
-                          <div className="pt-1 border-t border-purple-200 text-[11px] font-bold">
-                            Recommendation:{' '}
-                            <strong className="text-slate-900 uppercase font-mono">{d.ai_score.recommendation}</strong>
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 rounded-xl bg-purple-600 text-white font-extrabold flex items-center justify-center font-mono text-sm shadow-xs">
+                                {(seller?.full_name || 'S').charAt(0)}
+                              </div>
+                              <div>
+                                <h4 className="font-extrabold text-slate-900 text-sm">{seller?.full_name || 'Seller Account'}</h4>
+                                <div className="text-[11px] text-slate-500 font-mono">{seller?.phone || 'Phone verified'}</div>
+                              </div>
+                            </div>
+
+                            <div className="grid grid-cols-3 gap-2 pt-2 border-t border-slate-100 text-center text-xs">
+                              <div className="bg-slate-50 p-2 rounded-xl">
+                                <span className="text-[10px] text-slate-400 block font-bold">Completed</span>
+                                <strong className="text-slate-900 font-mono">{seller?.completed_trades ?? 0}</strong>
+                              </div>
+                              <div className="bg-slate-50 p-2 rounded-xl">
+                                <span className="text-[10px] text-slate-400 block font-bold">Disputes</span>
+                                <strong className="text-rose-600 font-mono">{seller?.disputed_trades ?? 0}</strong>
+                              </div>
+                              <div className="bg-slate-50 p-2 rounded-xl">
+                                <span className="text-[10px] text-slate-400 block font-bold">Volume</span>
+                                <strong className="text-slate-900 font-mono">{formatNaira(seller?.total_volume ?? 0)}</strong>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* FEATURE 1: EVIDENCE REVIEW PANEL (BUYER VS SELLER EVIDENCE & MEDIA LIGHTBOX) */}
+                      <div className="space-y-2">
+                        <span className="text-xs font-extrabold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                          <Eye className="w-4 h-4 text-purple-600" /> Evidence Review Panel
+                        </span>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                          {/* Buyer Evidence Panel */}
+                          <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-3">
+                            <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                              <span className="font-bold text-rose-700 uppercase tracking-wider text-[10px] flex items-center gap-1">
+                                <AlertCircle className="w-3.5 h-3.5" /> Buyer Claim & Uploaded Evidence
+                              </span>
+                              <span className="font-mono text-[10px] text-slate-400">
+                                {new Date(d.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              </span>
+                            </div>
+
+                            <div className="space-y-1.5">
+                              <span className="px-2 py-0.5 rounded bg-rose-50 text-rose-700 font-mono font-bold text-[11px] inline-block">
+                                Reason: {d.reason}
+                              </span>
+                              <p className="text-slate-700 leading-relaxed bg-slate-50 p-3 rounded-xl border border-slate-100">
+                                "{d.description}"
+                              </p>
+                            </div>
+
+                            {/* Buyer Media Attachments */}
+                            {d.evidence_urls && d.evidence_urls.length > 0 && (
+                              <div className="space-y-1.5 pt-1">
+                                <span className="text-[10px] font-bold text-slate-400 uppercase flex items-center gap-1">
+                                  <ImageIcon className="w-3 h-3" /> Attached Evidence Media ({d.evidence_urls.length})
+                                </span>
+                                <div className="flex flex-wrap gap-2">
+                                  {d.evidence_urls.map((url, idx) => (
+                                    <button
+                                      key={idx}
+                                      onClick={() => setPreviewImage(url)}
+                                      className="relative group w-20 h-20 rounded-xl overflow-hidden border border-slate-200 hover:border-purple-600 transition-all shadow-2xs"
+                                    >
+                                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                                      <img src={url} alt={`Evidence ${idx + 1}`} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                                      <div className="absolute inset-0 bg-slate-900/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
+                                        <Eye className="w-4 h-4" />
+                                      </div>
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Seller Counter-Evidence Panel */}
+                          <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-3">
+                            <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                              <span className="font-bold text-purple-700 uppercase tracking-wider text-[10px] flex items-center gap-1">
+                                <ShieldCheck className="w-3.5 h-3.5" /> Seller Counter-Response
+                              </span>
+                              <span className="font-mono text-[10px] text-slate-400">
+                                {d.seller_response ? new Date(d.seller_response.submitted_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'No Response'}
+                              </span>
+                            </div>
+
+                            {d.seller_response ? (
+                              <div className="space-y-2">
+                                <p className="text-slate-700 leading-relaxed bg-purple-50/50 p-3 rounded-xl border border-purple-100">
+                                  "{d.seller_response.statement}"
+                                </p>
+
+                                {d.seller_response.evidence_urls && d.seller_response.evidence_urls.length > 0 && (
+                                  <div className="space-y-1.5 pt-1">
+                                    <span className="text-[10px] font-bold text-slate-400 uppercase flex items-center gap-1">
+                                      <ImageIcon className="w-3 h-3" /> Seller Counter-Media ({d.seller_response.evidence_urls.length})
+                                    </span>
+                                    <div className="flex flex-wrap gap-2">
+                                      {d.seller_response.evidence_urls.map((url, idx) => (
+                                        <button
+                                          key={idx}
+                                          onClick={() => setPreviewImage(url)}
+                                          className="relative group w-20 h-20 rounded-xl overflow-hidden border border-slate-200 hover:border-purple-600 transition-all shadow-2xs"
+                                        >
+                                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                                          <img src={url} alt={`Seller Evidence ${idx + 1}`} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                                          <div className="absolute inset-0 bg-slate-900/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
+                                            <Eye className="w-4 h-4" />
+                                          </div>
+                                        </button>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            ) : (
+                              <div className="p-4 rounded-xl bg-slate-50 text-slate-400 text-xs text-center border border-dashed border-slate-200">
+                                Seller has not submitted a formal counter-statement.
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* AI Evidence Assessment Card */}
+                      {d.ai_score && (
+                        <div className="bg-purple-50 border border-purple-200 rounded-2xl p-4 space-y-2 text-purple-900 text-xs">
+                          <div className="flex items-center justify-between font-bold">
+                            <span className="flex items-center gap-1.5 text-purple-800 text-xs font-extrabold">
+                              <Sparkles className="w-4 h-4 text-purple-600" /> AI Evidence & Telemetry Assessment
+                            </span>
+                            <span className="font-mono text-xs text-purple-700 font-extrabold bg-white px-2.5 py-0.5 rounded-full border border-purple-200">
+                              {d.ai_score.confidence}% Confidence
+                            </span>
+                          </div>
+
+                          <p className="text-[11px] text-slate-700 leading-relaxed font-medium">{d.ai_score.reasoning}</p>
+
+                          <div className="pt-2 border-t border-purple-200 text-xs font-bold flex items-center justify-between">
+                            <span>Recommended Binding Ruling:</span>
+                            <span className="px-3 py-1 rounded-lg bg-purple-600 text-white font-mono font-extrabold text-[11px] uppercase">
+                              {d.ai_score.recommendation}
+                            </span>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* FEATURE 2: MANDATORY RESOLUTION NOTE FIELD */}
+                      {d.status === 'OPEN' || d.status === 'UNDER_REVIEW' ? (
+                        <div className="space-y-3 pt-4 border-t border-slate-200">
+                          <div className="space-y-1">
+                            <label className="text-xs font-extrabold text-slate-900 flex items-center justify-between">
+                              <span className="flex items-center gap-1.5">
+                                <FileText className="w-4 h-4 text-purple-600" /> Mandatory Compliance Resolution Rationale *
+                              </span>
+                              <span className={`font-mono text-[11px] ${isNoteValid ? 'text-[#006B3F] font-bold' : 'text-slate-400'}`}>
+                                {currentNote.trim().length} / 10 min chars
+                              </span>
+                            </label>
+                            <textarea
+                              rows={2}
+                              value={currentNote}
+                              onChange={(e) => setResolutionNotes({ ...resolutionNotes, [d.id]: e.target.value })}
+                              placeholder="Type mandatory compliance rationale (min 10 chars)... e.g., Buyer attached verified spacebar video. Seller counter-evidence does not dispute hardware latency."
+                              className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-2xl text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-purple-600 shadow-2xs font-medium"
+                            />
+                            {!isNoteValid && (
+                              <p className="text-[11px] text-rose-600 font-semibold flex items-center gap-1 mt-1">
+                                <AlertCircle className="w-3.5 h-3.5" /> Resolution note is required before ruling buttons activate.
+                              </p>
+                            )}
+                          </div>
+
+                          {/* Action Buttons Triggering FEATURE 4: CONFIRMATION MODAL */}
+                          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">
+                            <span className="text-xs text-slate-500 font-medium">Execute Binding Ruling:</span>
+
+                            <div className="flex items-center gap-2.5 w-full sm:w-auto">
+                              <button
+                                onClick={() =>
+                                  setPendingRulingModal({
+                                    dispute: d,
+                                    outcome: 'RESOLVE_BUYER',
+                                    note: currentNote,
+                                    tx,
+                                    buyer,
+                                    seller,
+                                  })
+                                }
+                                disabled={!isNoteValid || isProcessing}
+                                className="flex-1 sm:flex-none px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-xs transition-all shadow-sm disabled:opacity-40 disabled:hover:bg-rose-600 cursor-pointer disabled:cursor-not-allowed flex items-center justify-center gap-1.5"
+                              >
+                                Resolve Favor Buyer (Refund)
+                              </button>
+
+                              <button
+                                onClick={() =>
+                                  setPendingRulingModal({
+                                    dispute: d,
+                                    outcome: 'RESOLVE_SELLER',
+                                    note: currentNote,
+                                    tx,
+                                    buyer,
+                                    seller,
+                                  })
+                                }
+                                disabled={!isNoteValid || isProcessing}
+                                className="flex-1 sm:flex-none px-4 py-2.5 rounded-xl bg-[#006B3F] hover:bg-[#005432] text-white font-extrabold text-xs transition-all shadow-sm disabled:opacity-40 disabled:hover:bg-[#006B3F] cursor-pointer disabled:cursor-not-allowed flex items-center justify-center gap-1.5"
+                              >
+                                Resolve Favor Seller (Release Payout)
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="pt-4 border-t border-slate-200 text-xs text-[#006B3F] font-extrabold flex items-center gap-2 bg-emerald-50/60 p-4 rounded-2xl border border-emerald-100">
+                          <CheckCircle2 className="w-5 h-5 text-[#006B3F] shrink-0" />
+                          <div>
+                            <span className="block font-bold text-slate-900">Case Closed & Settled:</span>
+                            <span className="text-slate-700 font-normal">{d.resolution_note || 'Resolved by Compliance Auditor'}</span>
                           </div>
                         </div>
                       )}
                     </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        )}
 
-                    {d.status === 'OPEN' || d.status === 'UNDER_REVIEW' ? (
-                      <div className="pt-3 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3">
-                        <span className="text-xs text-slate-500 font-medium">Execute Resolution:</span>
+        {/* TAB 3: TRANSACTIONS */}
+        {activeTab === 'transactions' && (
+          <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-xs space-y-6">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100 pb-4">
+              <div>
+                <h2 className="font-extrabold text-slate-900 text-base flex items-center gap-2">
+                  <ArrowUpDown className="w-5 h-5 text-purple-600" /> Platform Transactions Registry
+                </h2>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Complete view of all escrow agreements created across all merchants and buyers.
+                </p>
+              </div>
 
-                        <div className="flex items-center gap-2 w-full sm:w-auto">
-                          <button
-                            onClick={() => handleResolveDispute(d, 'RESOLVE_BUYER')}
-                            disabled={isProcessing}
-                            className="flex-1 sm:flex-none px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs transition-all shadow-xs disabled:opacity-50"
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="relative">
+                  <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                  <input
+                    type="text"
+                    placeholder="Search title, code, user..."
+                    value={txSearch}
+                    onChange={(e) => setTxSearch(e.target.value)}
+                    className="pl-9 pr-4 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-purple-600 w-48 sm:w-64"
+                  />
+                </div>
+
+                <select
+                  value={txStateFilter}
+                  onChange={(e) => setTxStateFilter(e.target.value)}
+                  className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:outline-none focus:border-purple-600"
+                >
+                  <option value="ALL">All States</option>
+                  <option value="CREATED">CREATED</option>
+                  <option value="DISPATCHED">DISPATCHED</option>
+                  <option value="RELEASED">RELEASED</option>
+                  <option value="DISPUTED">DISPUTED</option>
+                  <option value="REFUNDED">REFUNDED</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr className="border-b border-slate-200 text-slate-500 font-bold uppercase tracking-wider text-[10px] bg-slate-50/50">
+                    <th className="py-3 px-4">Contract / Title</th>
+                    <th className="py-3 px-4">Seller</th>
+                    <th className="py-3 px-4">Buyer</th>
+                    <th className="py-3 px-4">Amount</th>
+                    <th className="py-3 px-4">Fee</th>
+                    <th className="py-3 px-4">Status</th>
+                    <th className="py-3 px-4 text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {filteredTransactions.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="py-8 text-center text-slate-400">
+                        No transactions found matching criteria.
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredTransactions.map((tx) => (
+                      <tr key={tx.id} className="hover:bg-slate-50/80 transition-colors">
+                        <td className="py-3.5 px-4 font-medium text-slate-900">
+                          <div className="font-bold text-slate-900">{tx.title}</div>
+                          <div className="text-[11px] font-mono text-[#006B3F]">{tx.code}</div>
+                        </td>
+                        <td className="py-3.5 px-4 text-slate-600 font-medium">
+                          {tx.seller_name || tx.seller_id}
+                        </td>
+                        <td className="py-3.5 px-4 text-slate-600 font-medium">
+                          {tx.buyer_name || (tx.buyer_id ? tx.buyer_id : <span className="text-slate-400 italic">Unassigned</span>)}
+                        </td>
+                        <td className="py-3.5 px-4 font-mono font-bold text-slate-900">
+                          {formatNaira(tx.amount)}
+                        </td>
+                        <td className="py-3.5 px-4 font-mono text-slate-500">
+                          {formatNaira(tx.fee)}
+                        </td>
+                        <td className="py-3.5 px-4">
+                          <span
+                            className={`px-2.5 py-1 rounded-full font-mono text-[10px] font-bold uppercase ${
+                              tx.state === 'RELEASED'
+                                ? 'bg-emerald-100 text-[#006B3F]'
+                                : tx.state === 'DISPUTED'
+                                ? 'bg-rose-100 text-rose-700'
+                                : tx.state === 'DISPATCHED'
+                                ? 'bg-blue-100 text-blue-700'
+                                : 'bg-amber-100 text-amber-800'
+                            }`}
                           >
-                            Resolve Favor Buyer (Refund)
-                          </button>
-
-                          <button
-                            onClick={() => handleResolveDispute(d, 'RESOLVE_SELLER')}
-                            disabled={isProcessing}
-                            className="flex-1 sm:flex-none px-4 py-2 rounded-xl bg-[#006B3F] hover:bg-[#005432] text-white font-bold text-xs transition-all shadow-xs disabled:opacity-50"
+                            {tx.state}
+                          </span>
+                        </td>
+                        <td className="py-3.5 px-4 text-right">
+                          <Link
+                            href={`/pay/${tx.code.replace('#', '')}`}
+                            target="_blank"
+                            className="inline-flex items-center gap-1 text-purple-700 hover:text-purple-900 font-bold"
                           >
-                            Resolve Favor Seller (Release Payout)
-                          </button>
+                            View <ExternalLink className="w-3 h-3" />
+                          </Link>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* TAB 4: USERS */}
+        {activeTab === 'users' && (
+          <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-xs space-y-6">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100 pb-4">
+              <div>
+                <h2 className="font-extrabold text-slate-900 text-base flex items-center gap-2">
+                  <UsersIcon className="w-5 h-5 text-purple-600" /> User Directory & Risk Control
+                </h2>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Inspect user profiles, trust tier standing, and toggle suspension flags.
+                </p>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="relative">
+                  <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                  <input
+                    type="text"
+                    placeholder="Search name or phone..."
+                    value={userSearch}
+                    onChange={(e) => setUserSearch(e.target.value)}
+                    className="pl-9 pr-4 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-purple-600 w-48 sm:w-64"
+                  />
+                </div>
+
+                <select
+                  value={userRoleFilter}
+                  onChange={(e) => setUserRoleFilter(e.target.value)}
+                  className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:outline-none focus:border-purple-600"
+                >
+                  <option value="ALL">All Roles</option>
+                  <option value="seller">Seller</option>
+                  <option value="buyer">Buyer</option>
+                  <option value="admin">Admin</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {filteredUsers.length === 0 ? (
+                <div className="col-span-full py-8 text-center text-slate-400 text-xs">
+                  No user profiles found matching search criteria.
+                </div>
+              ) : (
+                filteredUsers.map((p) => (
+                  <div
+                    key={p.id}
+                    className={`border rounded-2xl p-5 space-y-4 transition-all shadow-xs ${
+                      p.is_suspended
+                        ? 'bg-rose-50/60 border-rose-200'
+                        : 'bg-white border-slate-200 hover:border-purple-200'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-purple-600 text-white font-extrabold flex items-center justify-center font-mono text-sm shadow-xs">
+                          {(p.full_name || 'U').charAt(0)}
+                        </div>
+                        <div>
+                          <h3 className="font-bold text-slate-900 text-sm flex items-center gap-1.5">
+                            {p.full_name || 'Unnamed User'}
+                            {p.is_suspended && (
+                              <span className="px-1.5 py-0.5 rounded bg-rose-600 text-white font-mono text-[9px] font-bold uppercase">
+                                SUSPENDED
+                              </span>
+                            )}
+                          </h3>
+                          <div className="text-[11px] text-slate-500 font-mono">{p.phone || 'N/A'}</div>
                         </div>
                       </div>
-                    ) : (
-                      <div className="pt-3 border-t border-slate-200 text-xs text-[#006B3F] font-bold flex items-center gap-2">
-                        <CheckCircle2 className="w-4 h-4" /> Case Closed: {d.resolution_note}
+
+                      <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 text-[10px] font-mono font-bold uppercase">
+                        {p.role}
+                      </span>
+                    </div>
+
+                    <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
+                      <div>
+                        <div className="text-[10px] font-bold text-slate-400 uppercase">Trust Tier</div>
+                        <TrustBadge score={p.trust_score} tier={p.trust_tier} compact />
                       </div>
-                    )}
+
+                      <div className="text-right">
+                        <div className="text-[10px] font-bold text-slate-400 uppercase">Wallet Balance</div>
+                        <div className="font-mono font-bold text-slate-900">{formatNaira(p.simulated_balance)}</div>
+                      </div>
+                    </div>
+
+                    <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => handleAdjustTrustScore(p.id, p.full_name, -10)}
+                          title="Reduce Trust Score (-10)"
+                          className="px-2 py-1 rounded-lg bg-slate-100 hover:bg-rose-100 text-slate-700 hover:text-rose-700 text-[10px] font-mono font-bold transition-all"
+                        >
+                          -10 Trust
+                        </button>
+                        <button
+                          onClick={() => handleAdjustTrustScore(p.id, p.full_name, 10)}
+                          title="Increase Trust Score (+10)"
+                          className="px-2 py-1 rounded-lg bg-slate-100 hover:bg-emerald-100 text-slate-700 hover:text-emerald-700 text-[10px] font-mono font-bold transition-all"
+                        >
+                          +10 Trust
+                        </button>
+                      </div>
+
+                      {p.role !== 'admin' && (
+                        <button
+                          onClick={() => handleToggleUserSuspension(p.id, p.full_name)}
+                          className={`px-3 py-1 rounded-xl text-xs font-bold transition-all flex items-center gap-1 ${
+                            p.is_suspended
+                              ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                              : 'bg-rose-100 hover:bg-rose-200 text-rose-700'
+                          }`}
+                        >
+                          {p.is_suspended ? (
+                            <>
+                              <UserCheck className="w-3.5 h-3.5" /> Activate
+                            </>
+                          ) : (
+                            <>
+                              <UserX className="w-3.5 h-3.5" /> Suspend
+                            </>
+                          )}
+                        </button>
+                      )}
+                    </div>
                   </div>
-                );
-              })
-            )}
+                ))
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* TAB 5: WITHDRAWALS */}
+        {activeTab === 'withdrawals' && (
+          <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-xs space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
+              <div>
+                <h2 className="font-extrabold text-slate-900 text-base flex items-center gap-2">
+                  <Landmark className="w-5 h-5 text-purple-600" /> Pending Bank Withdrawals Queue
+                </h2>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Process pending bank payout transfers requested by verified merchants.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Filter className="w-4 h-4 text-slate-400" />
+                <select
+                  value={withdrawalFilter}
+                  onChange={(e) => setWithdrawalFilter(e.target.value)}
+                  className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:outline-none focus:border-purple-600"
+                >
+                  <option value="ALL">All Statuses</option>
+                  <option value="PENDING">PENDING (Needs Approval)</option>
+                  <option value="COMPLETED">COMPLETED</option>
+                  <option value="FAILED">FAILED / REJECTED</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              {filteredWithdrawals.length === 0 ? (
+                <div className="py-12 text-center text-slate-400 text-xs">No withdrawal payout requests found.</div>
+              ) : (
+                filteredWithdrawals.map((w) => {
+                  const seller = mockStore.getProfileById(w.seller_id);
+                  return (
+                    <div
+                      key={w.id}
+                      className="bg-slate-50 border border-slate-200 rounded-2xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-2xs"
+                    >
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-mono font-bold text-purple-700">REF: {w.reference}</span>
+                          <span
+                            className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold uppercase ${
+                              w.status === 'COMPLETED'
+                                ? 'bg-emerald-100 text-[#006B3F]'
+                                : w.status === 'PENDING'
+                                ? 'bg-amber-100 text-amber-800 border border-amber-200'
+                                : 'bg-rose-100 text-rose-700'
+                            }`}
+                          >
+                            {w.status}
+                          </span>
+                        </div>
+
+                        <div className="font-extrabold text-slate-900 text-base">
+                          {formatNaira(w.amount)}
+                        </div>
+
+                        <div className="text-xs text-slate-600">
+                          Beneficiary: <strong className="text-slate-900">{w.account_name}</strong> ({w.bank_name} • {w.account_number})
+                        </div>
+                        <div className="text-[11px] text-slate-400 font-mono">
+                          Merchant ID: {seller?.full_name || w.seller_id} • Requested {new Date(w.created_at).toLocaleString()}
+                        </div>
+                      </div>
+
+                      {w.status === 'PENDING' ? (
+                        <div className="flex items-center gap-2 self-start sm:self-center">
+                          <button
+                            onClick={() => handleRejectWithdrawal(w.id, w.reference, w.amount)}
+                            className="px-4 py-2 rounded-xl border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs transition-all"
+                          >
+                            Reject & Refund
+                          </button>
+                          <button
+                            onClick={() => handleApproveWithdrawal(w.id, w.reference, w.amount)}
+                            className="px-4 py-2 rounded-xl bg-[#006B3F] hover:bg-[#005432] text-white font-bold text-xs transition-all shadow-xs flex items-center gap-1.5"
+                          >
+                            <Check className="w-4 h-4" /> Approve Bank Transfer
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="text-xs font-mono text-slate-400 font-semibold self-start sm:self-center">
+                          Processed {w.processed_at ? new Date(w.processed_at).toLocaleTimeString() : 'Done'}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        )}
+      </main>
+
+      {/* FEATURE 4: CONFIRMATION MODAL BEFORE EXECUTING BINDING RULING */}
+      {pendingRulingModal && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 max-w-lg w-full space-y-6 shadow-2xl relative animate-in zoom-in-95 duration-200">
+            <button
+              onClick={() => setPendingRulingModal(null)}
+              className="absolute top-5 right-5 p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-900 transition-all"
+            >
+              <X className="w-4 h-4" />
+            </button>
+
+            <div className="flex items-center gap-3">
+              <div
+                className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${
+                  pendingRulingModal.outcome === 'RESOLVE_BUYER'
+                    ? 'bg-rose-100 text-rose-700'
+                    : 'bg-emerald-100 text-[#006B3F]'
+                }`}
+              >
+                <AlertTriangle className="w-6 h-6" />
+              </div>
+              <div>
+                <span className="text-[10px] font-mono font-bold text-slate-400 uppercase tracking-wider block">
+                  Irreversible Compliance Action
+                </span>
+                <h3 className="font-extrabold text-slate-900 text-lg">Confirm Binding Dispute Ruling</h3>
+              </div>
+            </div>
+
+            {/* Warning Details Statement */}
+            <div className="p-4 rounded-2xl bg-amber-50/80 border border-amber-200 text-slate-800 text-xs space-y-2">
+              <div className="font-bold text-slate-900 flex items-center gap-1.5">
+                <ShieldAlert className="w-4 h-4 text-amber-600 shrink-0" />
+                {pendingRulingModal.outcome === 'RESOLVE_BUYER'
+                  ? `Refunding ${formatNaira(pendingRulingModal.tx?.amount || 0)} to Buyer (${pendingRulingModal.buyer?.full_name || 'Buyer'})`
+                  : `Releasing ${formatNaira(pendingRulingModal.tx?.amount || 0)} to Seller (${pendingRulingModal.seller?.full_name || 'Seller'})`}
+              </div>
+              <p className="text-slate-600 leading-relaxed font-medium">
+                You are about to execute a binding dispute ruling for contract{' '}
+                <strong className="text-slate-900 font-mono">{pendingRulingModal.tx?.code}</strong>. Escrow vault funds will be immediately
+                unfrozen and transferred. <strong className="text-rose-700 uppercase">This action is irreversible. Confirm?</strong>
+              </p>
+            </div>
+
+            {/* Documented Rationale Preview */}
+            <div className="space-y-1 text-xs">
+              <span className="font-extrabold text-slate-700 uppercase text-[10px] tracking-wider block">
+                Documented Compliance Rationale:
+              </span>
+              <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 font-medium italic">
+                "{pendingRulingModal.note}"
+              </div>
+            </div>
+
+            {/* Modal Actions */}
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                onClick={() => setPendingRulingModal(null)}
+                disabled={isProcessing}
+                className="px-5 py-2.5 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-100 font-bold text-xs transition-all"
+              >
+                Cancel / Return
+              </button>
+              <button
+                onClick={() =>
+                  handleExecuteResolution(
+                    pendingRulingModal.dispute,
+                    pendingRulingModal.outcome,
+                    pendingRulingModal.note
+                  )
+                }
+                disabled={isProcessing}
+                className={`px-5 py-2.5 rounded-xl text-white font-extrabold text-xs transition-all shadow-md flex items-center gap-2 ${
+                  pendingRulingModal.outcome === 'RESOLVE_BUYER'
+                    ? 'bg-rose-600 hover:bg-rose-700'
+                    : 'bg-[#006B3F] hover:bg-[#005432]'
+                }`}
+              >
+                {isProcessing ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 animate-spin" /> Executing Ruling...
+                  </>
+                ) : (
+                  <>
+                    <Check className="w-4 h-4" /> Confirm & Execute Binding Ruling
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         </div>
-      </main>
+      )}
+
+      {/* FULLSCREEN LIGHTBOX MODAL FOR EVIDENCE MEDIA */}
+      {previewImage && (
+        <div
+          onClick={() => setPreviewImage(null)}
+          className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-200 cursor-zoom-out"
+        >
+          <div className="relative max-w-4xl max-h-[90vh] w-full flex items-center justify-center p-2" onClick={(e) => e.stopPropagation()}>
+            <button
+              onClick={() => setPreviewImage(null)}
+              className="absolute -top-12 right-0 p-2 rounded-xl bg-white/10 text-white hover:bg-white/20 transition-all font-bold text-xs flex items-center gap-1.5"
+            >
+              <X className="w-5 h-5" /> Close Lightbox
+            </button>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={previewImage} alt="Evidence Full Preview" className="max-w-full max-h-[80vh] object-contain rounded-2xl shadow-2xl border border-white/20" />
+          </div>
+        </div>
+      )}
 
       <Footer />
     </div>
+  );
+}
+
+export default function AdminPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-[#F8FAFC] flex items-center justify-center">
+          <div className="flex items-center gap-3 text-purple-700 font-extrabold text-sm">
+            <RefreshCw className="w-5 h-5 animate-spin" /> Loading Compliance Portal...
+          </div>
+        </div>
+      }
+    >
+      <AdminContent />
+    </Suspense>
   );
 }

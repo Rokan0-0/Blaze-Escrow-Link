@@ -31,6 +31,8 @@ import {
   Info,
   CheckCircle2,
   AlertCircle,
+  LayoutDashboard,
+  ShoppingBag,
 } from 'lucide-react';
 
 export default function EscrowPaymentPage() {
@@ -61,6 +63,7 @@ export default function EscrowPaymentPage() {
   const [logisticsProvider, setLogisticsProvider] = useState<'GIG' | 'KWIK' | 'SENDBOX' | 'CAMPUS_DIRECT' | 'OTHER'>('CAMPUS_DIRECT');
 
   const [showDisputeModal, setShowDisputeModal] = useState(false);
+  const [showReleaseModal, setShowReleaseModal] = useState(false);
   const [disputeReason, setDisputeReason] = useState('ITEM_DEFECTIVE');
   const [disputeDesc, setDisputeDesc] = useState('');
 
@@ -212,6 +215,7 @@ export default function EscrowPaymentPage() {
     if (res.success && res.transaction) {
       setTx({ ...res.transaction });
       setActionSuccess('Delivery confirmed! Escrow funds released to seller.');
+      setShowReleaseModal(true);
       refreshProfile();
       loadData();
       try {
@@ -307,6 +311,19 @@ export default function EscrowPaymentPage() {
 
             {/* Product card */}
             <div className="bg-white border border-slate-200 rounded-3xl p-4 sm:p-6 shadow-2xs space-y-4">
+              {tx.image_url && (
+                <div className="relative w-full h-48 sm:h-64 rounded-2xl overflow-hidden bg-slate-100 border border-slate-200">
+                  <img
+                    src={tx.image_url}
+                    alt={tx.title}
+                    className="w-full h-full object-cover"
+                  />
+                  <div className="absolute top-3 right-3 bg-slate-900/70 backdrop-blur-md text-white font-mono text-[10px] px-2.5 py-1 rounded-full font-bold">
+                    Seller Verified Item
+                  </div>
+                </div>
+              )}
+
               <div>
                 <span className="text-[10px] sm:text-[11px] font-bold px-2.5 py-0.5 sm:py-1 rounded-full bg-slate-100 text-slate-600 border border-slate-200 uppercase tracking-wider">
                   {tx.category}
@@ -653,15 +670,32 @@ export default function EscrowPaymentPage() {
               </div>
             )}
 
-            {/* BUYER VIEW: RELEASED */}
-            {isBuyer && tx.state === 'RELEASED' && (
-              <div className="bg-emerald-50 border border-emerald-200 rounded-3xl p-4 sm:p-6 shadow-2xs space-y-2">
-                <div className="flex items-center gap-2 text-[#006B3F] font-extrabold text-xs sm:text-sm">
-                  <CheckCircle2 className="w-5 h-5 shrink-0" /> Delivery Confirmed. Funds Released to Seller.
+            {/* RELEASED state UI */}
+            {tx.state === 'RELEASED' && (
+              <div className="bg-emerald-50 border border-emerald-200 rounded-3xl p-5 sm:p-6 shadow-2xs space-y-4 text-xs">
+                <div className="flex items-center gap-2 text-[#006B3F] font-extrabold text-sm sm:text-base">
+                  <CheckCircle2 className="w-6 h-6 shrink-0 text-[#006B3F]" /> Delivery Confirmed. Escrow Payout Released!
                 </div>
-                <p className="text-xs text-slate-600">
-                  This escrow contract is closed. Thank you for using Blaze Escrow!
+                <p className="text-slate-700 leading-relaxed text-xs">
+                  This escrow contract is fully settled and closed. Funds have been credited to the merchant&apos;s Ecobank Blaze account.
                 </p>
+
+                {/* Return to Dashboard Buttons */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+                  <Link
+                    href="/dashboard"
+                    className="w-full bg-[#006B3F] hover:bg-[#005432] text-white font-extrabold py-3 px-4 rounded-2xl text-xs transition-all shadow-md flex items-center justify-center gap-2 text-center"
+                  >
+                    <LayoutDashboard className="w-4 h-4" /> Return to Dashboard
+                  </Link>
+
+                  <Link
+                    href="/active-contracts"
+                    className="w-full bg-white hover:bg-slate-100 text-slate-800 border border-slate-200 font-bold py-3 px-4 rounded-2xl text-xs transition-all flex items-center justify-center gap-2 text-center"
+                  >
+                    <ShieldCheck className="w-4 h-4 text-[#006B3F]" /> View Active Contracts
+                  </Link>
+                </div>
               </div>
             )}
 
@@ -806,6 +840,54 @@ export default function EscrowPaymentPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* POST-RELEASE SUCCESS DASHBOARD NAVIGATION MODAL */}
+      {showReleaseModal && (
+        <div className="fixed inset-0 z-50 glass-modal flex items-center justify-center p-4">
+          <div className="bg-white border border-slate-200 rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-5 text-center relative overflow-hidden animate-in zoom-in-95 duration-200">
+            <button
+              onClick={() => setShowReleaseModal(false)}
+              className="absolute top-4 right-4 p-2 rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 transition-all"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="w-14 h-14 bg-emerald-100 border border-emerald-200 text-[#006B3F] rounded-2xl flex items-center justify-center mx-auto shadow-2xs">
+              <CheckCircle2 className="w-8 h-8" />
+            </div>
+
+            <div className="space-y-1">
+              <h3 className="font-extrabold text-slate-900 text-lg sm:text-xl">Escrow Funds Released!</h3>
+              <p className="text-xs text-slate-600 max-w-xs mx-auto leading-relaxed">
+                Delivery has been confirmed and escrow funds have been credited. No need to press browser back button!
+              </p>
+            </div>
+
+            <div className="space-y-2.5 pt-2">
+              <Link
+                href="/dashboard"
+                className="w-full bg-[#006B3F] hover:bg-[#005432] text-white font-extrabold py-3.5 px-4 rounded-2xl text-xs transition-all shadow-md flex items-center justify-center gap-2"
+              >
+                <LayoutDashboard className="w-4 h-4" /> Return to Merchant Dashboard
+              </Link>
+
+              <Link
+                href="/active-contracts"
+                className="w-full bg-slate-50 hover:bg-slate-100 text-slate-800 border border-slate-200 font-bold py-3 px-4 rounded-2xl text-xs transition-all flex items-center justify-center gap-2"
+              >
+                <ShieldCheck className="w-4 h-4 text-[#006B3F]" /> View Active Contracts
+              </Link>
+
+              <button
+                onClick={() => setShowReleaseModal(false)}
+                className="w-full text-slate-500 hover:text-slate-900 font-semibold py-2 text-xs transition-colors"
+              >
+                Stay on Contract Page
+              </button>
+            </div>
           </div>
         </div>
       )}

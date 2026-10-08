@@ -8,7 +8,7 @@ import { Footer } from '@/components/layout/Footer';
 import { ShareCardModal } from '@/components/escrow/ShareCardModal';
 import { TrustBadge } from '@/components/trust/TrustBadge';
 import { LoadingScreen } from '@/components/ui/LoadingScreen';
-import { formatNaira, formatDate, calculateEscrowFee } from '@/lib/formatters';
+import { formatNaira, formatDate, calculateEscrowFee, formatNumberInput, parseNumberInput } from '@/lib/formatters';
 import { mockStore } from '@/lib/mock/store';
 import { EscrowTransaction, Withdrawal } from '@/lib/mock/types';
 import confetti from 'canvas-confetti';
@@ -25,7 +25,23 @@ import {
   MessageSquare,
   AlertCircle,
   FileText,
+  ChevronDown,
+  ChevronUp,
+  Image as ImageIcon,
+  Sparkles,
+  Truck,
+  Clock,
+  ShieldCheck,
+  AlertTriangle,
 } from 'lucide-react';
+
+const SAMPLE_PRESET_IMAGES = [
+  { name: 'Denim Jacket', url: 'https://images.unsplash.com/photo-1576995853123-5a10305d93c0?w=600&auto=format&fit=crop&q=80' },
+  { name: 'AirPods Pro', url: 'https://images.unsplash.com/photo-1600294037681-c80b4cb5b434?w=600&auto=format&fit=crop&q=80' },
+  { name: 'MacBook', url: 'https://images.unsplash.com/photo-1517336714731-489689fd1ca8?w=600&auto=format&fit=crop&q=80' },
+  { name: 'Sneakers', url: 'https://images.unsplash.com/photo-1552346154-21d32810aba3?w=600&auto=format&fit=crop&q=80' },
+  { name: 'Smartwatch', url: 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=600&auto=format&fit=crop&q=80' },
+];
 
 export default function DashboardPage() {
   const { user, openAuthModal, isLoading, refreshProfile } = useAuth();
@@ -39,6 +55,8 @@ export default function DashboardPage() {
   const [category, setCategory] = useState('Fashion & Apparel');
   const [amountNaira, setAmountNaira] = useState('');
   const [logistics, setLogistics] = useState<'GIG' | 'KWIK' | 'SENDBOX' | 'CAMPUS_DIRECT' | 'OTHER'>('CAMPUS_DIRECT');
+  const [imageUrl, setImageUrl] = useState('');
+  const [isGeneratorOpen, setIsGeneratorOpen] = useState(false);
 
   const [generatedLink, setGeneratedLink] = useState<EscrowTransaction | null>(null);
   const [copiedLink, setCopiedLink] = useState(false);
@@ -60,6 +78,48 @@ export default function DashboardPage() {
       setAccountName(user.full_name);
     }
   }, [user]);
+
+  // Restore form draft on mount if page is reloaded
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const savedDraft = localStorage.getItem('blaze_link_creator_draft');
+        if (savedDraft) {
+          const draft = JSON.parse(savedDraft);
+          if (draft.title) setTitle(draft.title);
+          if (draft.description) setDescription(draft.description);
+          if (draft.category) setCategory(draft.category);
+          if (draft.amountNaira) setAmountNaira(draft.amountNaira);
+          if (draft.logistics) setLogistics(draft.logistics);
+          if (draft.imageUrl) setImageUrl(draft.imageUrl);
+        }
+      } catch (e) {}
+    }
+  }, []);
+
+  // Save form draft whenever fields change
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        if (title || description || amountNaira || imageUrl) {
+          localStorage.setItem(
+            'blaze_link_creator_draft',
+            JSON.stringify({ title, description, category, amountNaira, logistics, imageUrl })
+          );
+        }
+      } catch (e) {}
+    }
+  }, [title, description, category, amountNaira, logistics, imageUrl]);
+
+  const clearDraft = () => {
+    setTitle('');
+    setDescription('');
+    setAmountNaira('');
+    setImageUrl('');
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('blaze_link_creator_draft');
+    }
+  };
 
   const loadData = async () => {
     if (!user?.id) return;
@@ -119,7 +179,7 @@ export default function DashboardPage() {
     );
   }
 
-  const numAmount = (parseFloat(amountNaira) || 0) * 100;
+  const numAmount = parseNumberInput(amountNaira) * 100;
   const feeKobo = calculateEscrowFee(numAmount);
   const netKobo = Math.max(0, numAmount - feeKobo);
 
@@ -138,6 +198,7 @@ export default function DashboardPage() {
           category,
           amount: numAmount,
           logistics,
+          image_url: imageUrl || undefined,
         }),
       });
       const data = await res.json();
@@ -145,6 +206,7 @@ export default function DashboardPage() {
       if (data.success && data.transaction) {
         setGeneratedLink(data.transaction);
         mockStore.saveTransaction(data.transaction);
+        clearDraft();
         loadData();
         refreshProfile();
         try {
@@ -159,8 +221,10 @@ export default function DashboardPage() {
         category,
         amount: numAmount,
         logistics,
+        image_url: imageUrl || undefined,
       });
       setGeneratedLink(fallbackTx);
+      clearDraft();
       loadData();
     }
   };
@@ -177,7 +241,7 @@ export default function DashboardPage() {
   const handleCopySocialText = () => {
     if (generatedLink && typeof window !== 'undefined') {
       const url = `${window.location.origin}/pay/${encodeURIComponent(generatedLink.code)}`;
-      const text = `Buy ${generatedLink.title} safely with Ecobank Escrow protection! 🔒\nPrice: ${formatNaira(generatedLink.amount)}\nPay via Escrow Link: ${url}`;
+      const text = `Buy ${generatedLink.title} safely with Ecobank Escrow protection!\nPrice: ${formatNaira(generatedLink.amount)}\nPay via Escrow Link: ${url}`;
       navigator.clipboard.writeText(text);
       setCopiedText(true);
       setTimeout(() => setCopiedText(false), 2000);
@@ -188,7 +252,7 @@ export default function DashboardPage() {
     e.preventDefault();
     setWithdrawMsg('');
     setWithdrawError('');
-    const amountKobo = Math.round((parseFloat(withdrawAmount) || 0) * 100);
+    const amountKobo = Math.round(parseNumberInput(withdrawAmount) * 100);
 
     if (!amountKobo || amountKobo <= 0) {
       setWithdrawError('Please enter a valid payout amount.');
@@ -251,12 +315,16 @@ export default function DashboardPage() {
           </div>
 
           <div className="grid grid-cols-2 sm:flex sm:items-center gap-2 sm:gap-3 w-full sm:w-auto">
-            <a
-              href="#create-link"
+            <button
+              onClick={() => {
+                setIsGeneratorOpen(true);
+                const el = document.getElementById('create-link');
+                if (el) el.scrollIntoView({ behavior: 'smooth' });
+              }}
               className="px-3 py-2 sm:px-3.5 sm:py-2.5 rounded-xl bg-[#006B3F] hover:bg-[#005432] text-white font-bold text-xs transition-all shadow-md flex items-center justify-center gap-1.5 text-center"
             >
               <PlusCircle className="w-3.5 h-3.5 shrink-0" /> Create Link
-            </a>
+            </button>
             <button
               onClick={() => setShowWithdrawModal(true)}
               className="px-3 py-2 sm:px-3.5 sm:py-2.5 rounded-xl bg-white hover:bg-slate-50 text-slate-800 font-bold text-xs border border-slate-200 transition-all flex items-center justify-center gap-1.5 shadow-2xs text-center"
@@ -318,141 +386,236 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Link Generator */}
+        {/* COLLAPSIBLE LINK GENERATOR */}
         <div id="create-link" className="bg-white border border-slate-200 rounded-3xl p-4 sm:p-6 shadow-2xs space-y-4 sm:space-y-6">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+          <div
+            onClick={() => setIsGeneratorOpen(!isGeneratorOpen)}
+            className="flex items-center justify-between border-b border-slate-100 pb-3 cursor-pointer group select-none"
+          >
             <div>
               <h2 className="font-extrabold text-slate-900 text-sm sm:text-base flex items-center gap-2">
                 <LinkIcon className="w-4 h-4 sm:w-5 sm:h-5 text-[#006B3F]" /> Instant Escrow Link Generator
               </h2>
               <p className="text-[11px] sm:text-xs text-slate-500 mt-0.5">
-                Generate payment link with 0.75% escrow logic for WhatsApp & Instagram.
+                Generate payment link with 0.75% escrow logic & product images for WhatsApp & Instagram.
               </p>
             </div>
+            <button className="p-2 rounded-xl bg-slate-100 group-hover:bg-slate-200 text-slate-700 transition-all">
+              {isGeneratorOpen ? <ChevronUp className="w-4 h-4 sm:w-5 sm:h-5" /> : <ChevronDown className="w-4 h-4 sm:w-5 sm:h-5" />}
+            </button>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8">
-            <form onSubmit={handleCreateLink} className="space-y-3.5 text-xs">
-              <div>
-                <label className="block text-slate-700 font-bold mb-1">Item Title</label>
-                <input
-                  type="text"
-                  required
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  placeholder="e.g. Vintage Levi 90s Oversized Denim Jacket"
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-slate-900 placeholder-slate-400 font-medium focus:outline-none focus:border-[#006B3F] text-xs"
-                />
+          {!isGeneratorOpen ? (
+            <div
+              onClick={() => setIsGeneratorOpen(true)}
+              className="p-4 rounded-2xl bg-slate-50 border border-dashed border-slate-300 text-center cursor-pointer hover:bg-slate-100/70 transition-all space-y-1"
+            >
+              <div className="text-xs font-bold text-[#006B3F] flex items-center justify-center gap-1.5">
+                <PlusCircle className="w-4 h-4" /> Click to expand Escrow Link Generator
               </div>
-
-              <div className="grid grid-cols-2 gap-2.5">
+              <p className="text-[11px] text-slate-500">Create a new product link with price, details & photo in seconds</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8">
+              <form onSubmit={handleCreateLink} className="space-y-3.5 text-xs">
                 <div>
-                  <label className="block text-slate-700 font-bold mb-1">Category</label>
-                  <select
-                    value={category}
-                    onChange={(e) => setCategory(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-2.5 text-slate-900 font-medium text-xs"
-                  >
-                    <option value="Fashion & Apparel">Fashion & Apparel</option>
-                    <option value="Electronics">Electronics</option>
-                    <option value="Campus Textbooks">Campus Textbooks</option>
-                    <option value="Beauty & Skincare">Beauty & Skincare</option>
-                    <option value="Gadgets & Accessories">Gadgets & Accessories</option>
-                    <option value="Other">Other</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-slate-700 font-bold mb-1">Price (NGN ₦)</label>
+                  <label className="block text-slate-700 font-bold mb-1">Item Title</label>
                   <input
-                    type="number"
+                    type="text"
                     required
-                    value={amountNaira}
-                    onChange={(e) => setAmountNaira(e.target.value)}
-                    placeholder="18500"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-slate-900 font-mono font-bold placeholder-slate-400 focus:outline-none focus:border-[#006B3F] text-xs"
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                    placeholder="e.g. Vintage Levi 90s Oversized Denim Jacket"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-slate-900 placeholder-slate-400 font-medium focus:outline-none focus:border-[#006B3F] text-xs"
                   />
                 </div>
-              </div>
 
-              <div>
-                <label className="block text-slate-700 font-bold mb-1">Item Description / Condition</label>
-                <textarea
-                  rows={2}
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  placeholder="Grade A thrift condition, XL size..."
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-slate-900 placeholder-slate-400 font-medium focus:outline-none focus:border-[#006B3F] text-xs"
-                />
-              </div>
-
-              <div>
-                <label className="block text-slate-700 font-bold mb-1">Logistics Preference</label>
-                <select
-                  value={logistics}
-                  onChange={(e) => setLogistics(e.target.value as any)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-slate-900 font-medium text-xs"
-                >
-                  <option value="CAMPUS_DIRECT">Campus Direct (Handshake USSD PIN)</option>
-                  <option value="GIG">GIG Logistics</option>
-                  <option value="KWIK">Kwik Delivery Express</option>
-                  <option value="SENDBOX">Sendbox Courier</option>
-                  <option value="OTHER">Other Courier</option>
-                </select>
-              </div>
-
-              <div className="pt-1">
-                <button
-                  type="submit"
-                  className="w-full py-3 rounded-2xl bg-[#006B3F] hover:bg-[#005432] text-white font-extrabold text-xs transition-all shadow-md"
-                >
-                  Generate Escrow Link
-                </button>
-              </div>
-            </form>
-
-            {/* Generated Link Preview */}
-            <div className="flex flex-col justify-between bg-slate-50 border border-slate-200 rounded-2xl p-4 sm:p-5 space-y-4">
-              {!generatedLink ? (
-                <div className="h-full flex flex-col items-center justify-center text-center p-6 text-slate-400 space-y-2">
-                  <LinkIcon className="w-8 h-8 opacity-40" />
-                  <p className="text-xs">Fill the form to generate your escrow link & share card.</p>
-                </div>
-              ) : (
-                <div className="space-y-4 text-xs">
-                  <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-[#006B3F] font-bold flex items-center gap-2">
-                    <Check className="w-4 h-4 shrink-0" />
-                    Escrow Link Created! Share with buyer.
+                <div className="grid grid-cols-2 gap-2.5">
+                  <div>
+                    <label className="block text-slate-700 font-bold mb-1">Category</label>
+                    <select
+                      value={category}
+                      onChange={(e) => setCategory(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-2.5 text-slate-900 font-medium text-xs"
+                    >
+                      <option value="Fashion & Apparel">Fashion & Apparel</option>
+                      <option value="Electronics">Electronics</option>
+                      <option value="Campus Textbooks">Campus Textbooks</option>
+                      <option value="Beauty & Skincare">Beauty & Skincare</option>
+                      <option value="Gadgets & Accessories">Gadgets & Accessories</option>
+                      <option value="Other">Other</option>
+                    </select>
                   </div>
 
-                  <div className="bg-white border border-slate-200 rounded-xl p-3 space-y-1">
-                    <span className="text-[10px] text-slate-400 font-mono">CODE: {generatedLink.code}</span>
-                    <h4 className="font-bold text-slate-900 text-sm truncate">{generatedLink.title}</h4>
-                    <div className="text-[#006B3F] font-mono font-bold text-sm">
-                      {formatNaira(generatedLink.amount)}
+                  <div>
+                    <label className="block text-slate-700 font-bold mb-1">Price (NGN ₦)</label>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      required
+                      value={amountNaira}
+                      onChange={(e) => setAmountNaira(formatNumberInput(e.target.value))}
+                      placeholder="18,500"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-slate-900 font-mono font-bold placeholder-slate-400 focus:outline-none focus:border-[#006B3F] text-xs"
+                    />
+                  </div>
+                </div>
+
+                {/* PRODUCT IMAGE INPUT & PRESET CHIPS */}
+                <div className="space-y-2 bg-slate-50 p-3 rounded-2xl border border-slate-200">
+                  <div className="flex items-center justify-between">
+                    <label className="text-slate-800 font-bold flex items-center gap-1.5">
+                      <ImageIcon className="w-3.5 h-3.5 text-[#006B3F]" /> Product Image (URL or Sample Preset)
+                    </label>
+                    <span className="text-[10px] text-slate-500 font-mono">Optional</span>
+                  </div>
+
+                  <input
+                    type="url"
+                    value={imageUrl}
+                    onChange={(e) => setImageUrl(e.target.value)}
+                    placeholder="Paste image URL (https://...)"
+                    className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-slate-900 placeholder-slate-400 font-medium focus:outline-none focus:border-[#006B3F] text-xs"
+                  />
+
+                  {/* Sample presets chips */}
+                  <div className="space-y-1">
+                    <span className="text-[10px] text-slate-500 font-bold block">Quick Demo Image Presets:</span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {SAMPLE_PRESET_IMAGES.map((item) => (
+                        <button
+                          key={item.name}
+                          type="button"
+                          onClick={() => {
+                            setImageUrl(item.url);
+                            if (!title) setTitle(item.name.replace(/^[^\s]+\s*/, ''));
+                          }}
+                          className={`px-2 py-1 rounded-lg text-[10px] font-bold border transition-all ${
+                            imageUrl === item.url
+                              ? 'bg-[#006B3F] text-white border-[#006B3F]'
+                              : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
+                          }`}
+                        >
+                          {item.name}
+                        </button>
+                      ))}
                     </div>
                   </div>
 
-                  <div className="space-y-2">
-                    <button
-                      onClick={handleCopyLink}
-                      className="w-full bg-[#006B3F] hover:bg-[#005432] text-white font-bold py-2.5 px-3 rounded-xl flex items-center justify-center gap-2 transition-all text-xs"
-                    >
-                      {copiedLink ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                      {copiedLink ? 'Copied Link!' : 'Copy Direct Payment Link'}
-                    </button>
+                  {/* Image preview thumbnail */}
+                  {imageUrl && (
+                    <div className="flex items-center gap-3 pt-1 border-t border-slate-200/80">
+                      <img
+                        src={imageUrl}
+                        alt="Product preview"
+                        className="w-14 h-14 rounded-xl object-cover border border-slate-300 shrink-0 bg-white"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1560343090-f0409e92791a?w=400';
+                        }}
+                      />
+                      <div className="text-[11px] text-slate-600 flex-1 min-w-0">
+                        <span className="font-bold text-[#006B3F] block truncate">Image attached!</span>
+                        <span className="text-[10px] text-slate-400 line-clamp-1">{imageUrl}</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setImageUrl('')}
+                        className="p-1 text-slate-400 hover:text-rose-600"
+                        title="Remove image"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  )}
+                </div>
 
-                    <button
-                      onClick={() => setActiveShareTx(generatedLink)}
-                      className="w-full bg-[#25D366] hover:bg-[#20bd5a] text-white font-extrabold py-2.5 px-3 rounded-xl flex items-center justify-center gap-2 transition-all text-xs"
-                    >
-                      <Share2 className="w-3.5 h-3.5" /> Open WhatsApp & IG Share Card
-                    </button>
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">Item Description / Condition</label>
+                  <textarea
+                    rows={2}
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    placeholder="Grade A thrift condition, XL size..."
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-slate-900 placeholder-slate-400 font-medium focus:outline-none focus:border-[#006B3F] text-xs"
+                  />
+                </div>
 
-                    <button
-                      onClick={handleCopySocialText}
-                      className="w-full bg-white hover:bg-slate-100 text-slate-800 border border-slate-200 font-bold py-2.5 px-3 rounded-xl flex items-center justify-center gap-2 transition-all text-xs"
-                    >
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">Logistics Preference</label>
+                  <select
+                    value={logistics}
+                    onChange={(e) => setLogistics(e.target.value as any)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-slate-900 font-medium text-xs"
+                  >
+                    <option value="CAMPUS_DIRECT">Campus Direct (Handshake USSD PIN)</option>
+                    <option value="GIG">GIG Logistics</option>
+                    <option value="KWIK">Kwik Delivery Express</option>
+                    <option value="SENDBOX">Sendbox Courier</option>
+                    <option value="OTHER">Other Courier</option>
+                  </select>
+                </div>
+
+                <div className="pt-1">
+                  <button
+                    type="submit"
+                    className="w-full py-3 rounded-2xl bg-[#006B3F] hover:bg-[#005432] text-white font-extrabold text-xs transition-all shadow-md"
+                  >
+                    Generate Escrow Link
+                  </button>
+                </div>
+              </form>
+
+              {/* Generated Link Preview */}
+              <div className="flex flex-col justify-between bg-slate-50 border border-slate-200 rounded-2xl p-4 sm:p-5 space-y-4">
+                {!generatedLink ? (
+                  <div className="h-full flex flex-col items-center justify-center text-center p-6 text-slate-400 space-y-2">
+                    <LinkIcon className="w-8 h-8 opacity-40" />
+                    <p className="text-xs">Fill the form to generate your escrow link & share card.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4 text-xs">
+                    <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-[#006B3F] font-bold flex items-center gap-2">
+                      <Check className="w-4 h-4 shrink-0" />
+                      Escrow Link Created! Share with buyer.
+                    </div>
+
+                    <div className="bg-white border border-slate-200 rounded-xl p-3 space-y-2">
+                      {generatedLink.image_url && (
+                        <div className="relative w-full h-32 rounded-lg overflow-hidden bg-slate-100">
+                          <img
+                            src={generatedLink.image_url}
+                            alt={generatedLink.title}
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+                      )}
+                      <span className="text-[10px] text-slate-400 font-mono">CODE: {generatedLink.code}</span>
+                      <h4 className="font-bold text-slate-900 text-sm truncate">{generatedLink.title}</h4>
+                      <div className="text-[#006B3F] font-mono font-bold text-sm">
+                        {formatNaira(generatedLink.amount)}
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <button
+                        onClick={handleCopyLink}
+                        className="w-full bg-[#006B3F] hover:bg-[#005432] text-white font-bold py-2.5 px-3 rounded-xl flex items-center justify-center gap-2 transition-all text-xs"
+                      >
+                        {copiedLink ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                        {copiedLink ? 'Copied Link!' : 'Copy Direct Payment Link'}
+                      </button>
+
+                      <button
+                        onClick={() => setActiveShareTx(generatedLink)}
+                        className="w-full bg-[#25D366] hover:bg-[#20bd5a] text-white font-extrabold py-2.5 px-3 rounded-xl flex items-center justify-center gap-2 transition-all text-xs"
+                      >
+                        <Share2 className="w-3.5 h-3.5" /> Open WhatsApp & IG Share Card
+                      </button>
+
+                      <button
+                        onClick={handleCopySocialText}
+                        className="w-full bg-white hover:bg-slate-100 text-slate-800 border border-slate-200 font-bold py-2.5 px-3 rounded-xl flex items-center justify-center gap-2 transition-all text-xs"
+                      >
                       {copiedText ? <Check className="w-3.5 h-3.5 text-[#006B3F]" /> : <MessageSquare className="w-3.5 h-3.5 text-[#006B3F]" />}
                       {copiedText ? 'Copied Caption!' : 'Copy Raw Text Caption'}
                     </button>
@@ -468,7 +631,8 @@ export default function DashboardPage() {
               )}
             </div>
           </div>
-        </div>
+        )}
+      </div>
 
         {/* Activity & History Section */}
         <div className="bg-white border border-slate-200 rounded-3xl p-4 sm:p-6 shadow-2xs space-y-4">
@@ -749,11 +913,12 @@ export default function DashboardPage() {
               <div>
                 <label className="block text-slate-700 font-bold mb-1">Payout Amount (NGN ₦)</label>
                 <input
-                  type="number"
+                  type="text"
+                  inputMode="numeric"
                   required
                   value={withdrawAmount}
-                  onChange={(e) => setWithdrawAmount(e.target.value)}
-                  placeholder="e.g. 50000"
+                  onChange={(e) => setWithdrawAmount(formatNumberInput(e.target.value))}
+                  placeholder="e.g. 50,000"
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-900 font-mono font-bold text-sm focus:outline-none focus:border-[#006B3F]"
                 />
               </div>

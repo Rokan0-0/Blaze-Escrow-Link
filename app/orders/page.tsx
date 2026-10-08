@@ -123,26 +123,40 @@ export default function BuyerOrdersPage() {
                 key={o.id}
                 className="bg-white border border-slate-200 rounded-3xl p-4 sm:p-5 shadow-2xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 hover:shadow-xs transition-shadow"
               >
-                <div className="space-y-1.5 flex-1 min-w-0">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-mono text-[#006B3F] font-bold text-[11px] sm:text-xs">{o.code}</span>
-                    <span
-                      className={`px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-mono font-bold uppercase border flex items-center gap-1 ${STATE_COLORS[o.state] || 'bg-slate-100 text-slate-700 border-slate-200'}`}
-                    >
-                      {STATE_ICONS[o.state]} {o.state}
-                    </span>
-                  </div>
-                  <h3 className="font-bold text-slate-900 text-xs sm:text-sm truncate">{o.title}</h3>
-                  <div className="text-[11px] text-slate-500 font-mono flex flex-wrap gap-2.5 sm:gap-3">
-                    <span>Amount: <strong className="text-slate-900">{formatNaira(o.amount)}</strong></span>
-                    <span>Seller: <strong className="text-slate-700">{o.seller_name || 'Amina Bello'}</strong></span>
-                    <span>Date: <strong className="text-slate-700">{formatDate(o.created_at)}</strong></span>
-                  </div>
-                  {o.state === 'DISPATCHED' && o.tracking_id && (
-                    <div className="text-[11px] font-mono text-purple-700 font-bold">
-                      Tracking: {o.tracking_id}
+                <div className="flex items-start gap-3.5 flex-1 min-w-0">
+                  {o.image_url ? (
+                    <img
+                      src={o.image_url}
+                      alt={o.title}
+                      className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl object-cover border border-slate-200 shrink-0 bg-slate-100"
+                    />
+                  ) : (
+                    <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-slate-100 border border-slate-200 shrink-0 flex items-center justify-center text-slate-400">
+                      <ShoppingBag className="w-6 h-6" />
                     </div>
                   )}
+
+                  <div className="space-y-1 flex-1 min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-mono text-[#006B3F] font-bold text-[11px] sm:text-xs">{o.code}</span>
+                      <span
+                        className={`px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-mono font-bold uppercase border flex items-center gap-1 ${STATE_COLORS[o.state] || 'bg-slate-100 text-slate-700 border-slate-200'}`}
+                      >
+                        {STATE_ICONS[o.state]} {o.state}
+                      </span>
+                    </div>
+                    <h3 className="font-bold text-slate-900 text-xs sm:text-sm truncate">{o.title}</h3>
+                    <div className="text-[11px] text-slate-500 font-mono flex flex-wrap gap-2.5 sm:gap-3">
+                      <span>Amount: <strong className="text-slate-900">{formatNaira(o.amount)}</strong></span>
+                      <span>Seller: <strong className="text-slate-700">{o.seller_name || 'Amina Bello'}</strong></span>
+                      <span>Date: <strong className="text-slate-700">{formatDate(o.created_at)}</strong></span>
+                    </div>
+                    {o.state === 'DISPATCHED' && o.tracking_id && (
+                      <div className="text-[11px] font-mono text-purple-700 font-bold">
+                        Tracking: {o.tracking_id}
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 <div className="flex items-center gap-2.5 w-full sm:w-auto shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-100">

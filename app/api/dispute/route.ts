@@ -5,7 +5,7 @@ import { updateTrustScore } from '@/lib/trust/scoreEngine';
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { action, transaction_id, buyer_id, dispute_reason, dispute_description, dispute_id, outcome } = body;
+    const { action, transaction_id, buyer_id, dispute_reason, dispute_description, dispute_id, outcome, resolution_note } = body;
 
     if (action === 'RAISE') {
       const tx = await ServerDb.getTransactionById(transaction_id);
@@ -87,7 +87,7 @@ export async function POST(request: NextRequest) {
         }
 
         dispute.status = 'RESOLVED_BUYER';
-        dispute.resolution_note = 'Ecobank Compliance resolved dispute in favor of buyer.';
+        dispute.resolution_note = resolution_note || 'Ecobank Compliance resolved dispute in favor of buyer.';
         dispute.resolved_at = now;
         await ServerDb.saveDispute(dispute);
       } else {
@@ -103,7 +103,7 @@ export async function POST(request: NextRequest) {
         }
 
         dispute.status = 'RESOLVED_SELLER';
-        dispute.resolution_note = 'Ecobank Compliance resolved dispute in favor of seller.';
+        dispute.resolution_note = resolution_note || 'Ecobank Compliance resolved dispute in favor of seller.';
         dispute.resolved_at = now;
         await ServerDb.saveDispute(dispute);
       }

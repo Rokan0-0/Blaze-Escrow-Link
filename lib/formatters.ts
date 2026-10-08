@@ -7,12 +7,26 @@
 export function formatNaira(kobo: number | null | undefined, includeDecimals = false): string {
   const safeKobo = typeof kobo === 'number' && !isNaN(kobo) ? kobo : 0;
   const naira = safeKobo / 100;
-  return new Intl.NumberFormat('en-NG', {
+  const formatted = new Intl.NumberFormat('en-NG', {
     style: 'currency',
     currency: 'NGN',
     minimumFractionDigits: includeDecimals ? 2 : 0,
     maximumFractionDigits: includeDecimals ? 2 : 0,
   }).format(naira);
+  return formatted.replace(/[\u00A0\u202F]/g, '');
+}
+
+// Formats raw digit string to comma-separated number string e.g. "25000" -> "25,000"
+export function formatNumberInput(value: string): string {
+  const clean = value.replace(/\D/g, '');
+  if (!clean) return '';
+  return Number(clean).toLocaleString('en-US');
+}
+
+// Parses string with commas back to number integer e.g. "25,000" -> 25000
+export function parseNumberInput(value: string): number {
+  const clean = value.replace(/\D/g, '');
+  return parseInt(clean, 10) || 0;
 }
 
 // Formats phone numbers to standard Nigerian format +23480...

@@ -19,9 +19,9 @@ export function ShareCardModal({ transaction, onClose }: ShareCardModalProps) {
     ? `${window.location.origin}/pay/${encodeURIComponent(transaction.code)}`
     : `https://blaze-escrow.ecobank.com/pay/${encodeURIComponent(transaction.code)}`;
 
-  const whatsappMessage = `Hey! Pay securely for *${transaction.title}* (${formatNaira(transaction.amount)}) via Ecobank Blaze Escrow! 🔒\n\nFunds remain 100% safe in Ecobank vault until delivery is verified.\n👉 Pay via Escrow Link: ${paymentUrl}`;
+  const whatsappMessage = `Hey! Pay securely for *${transaction.title}* (${formatNaira(transaction.amount)}) via Ecobank Blaze Escrow!\n\nFunds remain 100% safe in Ecobank vault until delivery is verified.\nPay via Escrow Link: ${paymentUrl}`;
 
-  const instagramCaption = `🛍️ BUY SAFELY WITH ECOBANK ESCROW 🛍️\nItem: ${transaction.title}\nPrice: ${formatNaira(transaction.amount)}\n\nProtected by Ecobank Blaze 256-bit vault. 0% payment risk for buyers & sellers!\nLink to pay: ${paymentUrl}`;
+  const instagramCaption = `BUY SAFELY WITH ECOBANK ESCROW\nItem: ${transaction.title}\nPrice: ${formatNaira(transaction.amount)}\n\nProtected by Ecobank Blaze 256-bit vault. 0% payment risk for buyers & sellers!\nLink to pay: ${paymentUrl}`;
 
   const handleCopyLink = () => {
     navigator.clipboard.writeText(paymentUrl);
@@ -76,6 +76,17 @@ export function ShareCardModal({ transaction, onClose }: ShareCardModalProps) {
               PROTECTED
             </span>
           </div>
+
+          {transaction.image_url && (
+            <div className="relative w-full h-36 rounded-xl overflow-hidden bg-black/20 border border-white/20">
+              <img
+                src={transaction.image_url}
+                alt={transaction.title}
+                className="w-full h-full object-cover"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+            </div>
+          )}
 
           <div className="space-y-1">
             <h4 className="font-extrabold text-base leading-tight text-white">{transaction.title}</h4>

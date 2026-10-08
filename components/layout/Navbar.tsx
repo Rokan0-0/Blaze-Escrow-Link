@@ -9,16 +9,22 @@ import { TrustBadge } from '../trust/TrustBadge';
 import { formatNaira } from '@/lib/formatters';
 import { mockStore } from '@/lib/mock/store';
 import { NotificationItem } from '@/lib/mock/types';
+import { playPaymentPingSound } from '@/lib/audio/soundEffects';
 import {
   Bell,
   Wallet,
   LogOut,
   ShieldAlert,
+  ShieldCheck,
   ShoppingBag,
   LayoutDashboard,
   CheckCircle2,
   Menu,
   X,
+  Users,
+  ArrowUpDown,
+  BarChart3,
+  Landmark,
 } from 'lucide-react';
 
 export function Navbar() {
@@ -28,6 +34,7 @@ export function Navbar() {
   const [showNotifMenu, setShowNotifMenu] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const prevUnreadRef = React.useRef<number>(0);
 
   const fetchNotifications = async (userId: string) => {
     try {
@@ -36,7 +43,6 @@ export function Navbar() {
       const data = await res.json();
       if (data.notifications) {
         setNotifications((prev) => {
-          // Only update state if content changed (avoid unnecessary re-renders)
           if (JSON.stringify(prev) !== JSON.stringify(data.notifications)) {
             return data.notifications;
           }
@@ -44,7 +50,6 @@ export function Navbar() {
         });
       }
     } catch {
-      // Fallback to mockStore if API unreachable
       const items = mockStore.getNotificationsForUser(userId);
       setNotifications((prev) =>
         JSON.stringify(prev) !== JSON.stringify(items) ? items : prev
@@ -55,19 +60,28 @@ export function Navbar() {
   useEffect(() => {
     if (!user?.id) {
       setNotifications([]);
+      prevUnreadRef.current = 0;
       return;
     }
     fetchNotifications(user.id);
-    const interval = setInterval(() => fetchNotifications(user.id), 4000);
+    const interval = setInterval(() => fetchNotifications(user.id), 3000);
     return () => clearInterval(interval);
   }, [user?.id]);
+
+  const unreadCount = notifications.filter((n) => !n.read).length;
+
+  // Sound chime ping on new incoming notification/payment
+  useEffect(() => {
+    if (unreadCount > prevUnreadRef.current) {
+      playPaymentPingSound();
+    }
+    prevUnreadRef.current = unreadCount;
+  }, [unreadCount]);
 
   // Close mobile drawer on route change
   useEffect(() => {
     setMobileMenuOpen(false);
   }, [pathname]);
-
-  const unreadCount = notifications.filter((n) => !n.read).length;
 
   const handleMarkAllRead = async () => {
     if (!user) return;
@@ -77,36 +91,72 @@ export function Navbar() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ user_id: user.id }),
       });
-      // Immediately update local state
       setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
     } catch {
-      // Fallback: update mockStore only
       notifications.forEach((n) => mockStore.markNotifAsRead(n.id));
       setNotifications(mockStore.getNotificationsForUser(user.id));
     }
   };
+
+  const isAppPage = !!user && (pathname.startsWith('/dashboard') || pathname.startsWith('/active-contracts') || pathname.startsWith('/orders') || pathname.startsWith('/admin') || pathname.startsWith('/pay'));
 
   return (
     <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200 shadow-2xs">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-4">
         {/* Left: Logo */}
         <Link
-          href={user ? '#' : '/'}
-          onClick={(e) => {
-            if (user) {
-              e.preventDefault();
-              window.location.reload();
-            }
-          }}
+          href="/"
           className="hover:opacity-90 transition-opacity text-left focus:outline-none"
-          title={user ? 'Reload Page' : 'Ecobank Blaze Escrow'}
+          title="Ecobank Blaze Escrow Home"
         >
           <Logo />
         </Link>
 
         {/* Desktop Nav */}
         <nav className="hidden md:flex items-center gap-6">
-          {user ? (
+          {user?.role === 'admin' ? (
+            <>
+              <Link
+                href="/admin?tab=overview"
+                className={`text-xs font-extrabold flex items-center gap-1.5 transition-colors ${
+                  pathname.startsWith('/admin')
+                    ? 'text-purple-700'
+                    : 'text-slate-600 hover:text-purple-700'
+                }`}
+              >
+                <BarChart3 className="w-4 h-4 text-purple-600" />
+                Overview
+              </Link>
+              <Link
+                href="/admin?tab=disputes"
+                className="text-xs font-extrabold flex items-center gap-1.5 text-slate-600 hover:text-purple-700 transition-colors"
+              >
+                <ShieldAlert className="w-4 h-4 text-purple-600" />
+                Dispute Queue
+              </Link>
+              <Link
+                href="/admin?tab=transactions"
+                className="text-xs font-extrabold flex items-center gap-1.5 text-slate-600 hover:text-purple-700 transition-colors"
+              >
+                <ArrowUpDown className="w-4 h-4 text-purple-600" />
+                Transactions
+              </Link>
+              <Link
+                href="/admin?tab=users"
+                className="text-xs font-extrabold flex items-center gap-1.5 text-slate-600 hover:text-purple-700 transition-colors"
+              >
+                <Users className="w-4 h-4 text-purple-600" />
+                Users
+              </Link>
+              <Link
+                href="/admin?tab=withdrawals"
+                className="text-xs font-extrabold flex items-center gap-1.5 text-slate-600 hover:text-purple-700 transition-colors"
+              >
+                <Landmark className="w-4 h-4 text-purple-600" />
+                Withdrawals
+              </Link>
+            </>
+          ) : isAppPage ? (
             <>
               <Link
                 href="/dashboard"
@@ -120,6 +170,17 @@ export function Navbar() {
                 Dashboard
               </Link>
               <Link
+                href="/active-contracts"
+                className={`text-xs font-extrabold flex items-center gap-1.5 transition-colors ${
+                  pathname.startsWith('/active-contracts')
+                    ? 'text-[#006B3F]'
+                    : 'text-slate-600 hover:text-[#006B3F]'
+                }`}
+              >
+                <ShieldCheck className="w-4 h-4 text-[#006B3F]" />
+                Active Contracts
+              </Link>
+              <Link
                 href="/orders"
                 className={`text-xs font-extrabold flex items-center gap-1.5 transition-colors ${
                   pathname.startsWith('/orders')
@@ -130,20 +191,6 @@ export function Navbar() {
                 <ShoppingBag className="w-4 h-4 text-[#006B3F]" />
                 My Orders
               </Link>
-
-              {user?.role === 'admin' && (
-                <Link
-                  href="/admin"
-                  className={`text-xs font-extrabold flex items-center gap-1.5 transition-colors ${
-                    pathname.startsWith('/admin')
-                      ? 'text-purple-700'
-                      : 'text-purple-600 hover:text-purple-800'
-                  }`}
-                >
-                  <ShieldAlert className="w-4 h-4 text-purple-600" />
-                  Admin Hub
-                </Link>
-              )}
             </>
           ) : (
             <>
@@ -177,6 +224,16 @@ export function Navbar() {
               >
                 FAQ
               </Link>
+              <Link
+                href="/demo"
+                className={`text-xs font-extrabold transition-colors ${
+                  pathname === '/demo'
+                    ? 'text-purple-700'
+                    : 'text-purple-600 hover:text-purple-800'
+                }`}
+              >
+                Demo Sandbox
+              </Link>
             </>
           )}
         </nav>
@@ -185,17 +242,33 @@ export function Navbar() {
         <div className="flex items-center gap-2 sm:gap-3">
           {user ? (
             <>
-              <div className="hidden sm:flex items-center gap-2 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-xl text-xs">
-                <Wallet className="w-3.5 h-3.5 text-[#006B3F]" />
-                <span className="text-slate-500 font-medium">Balance:</span>
-                <span className="font-mono font-bold text-slate-900">
-                  {formatNaira(user.simulated_balance)}
-                </span>
-              </div>
+              {/* Show Balance & Trust Badge only on internal App Pages */}
+              {isAppPage && (
+                <>
+                  <div className="hidden sm:flex items-center gap-2 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-xl text-xs">
+                    <Wallet className="w-3.5 h-3.5 text-[#006B3F]" />
+                    <span className="text-slate-500 font-medium">Balance:</span>
+                    <span className="font-mono font-bold text-slate-900">
+                      {formatNaira(user.simulated_balance)}
+                    </span>
+                  </div>
 
-              <div className="hidden lg:block">
-                <TrustBadge score={user.trust_score} tier={user.trust_tier} compact />
-              </div>
+                  <div className="hidden lg:block">
+                    <TrustBadge score={user.trust_score} tier={user.trust_tier} compact />
+                  </div>
+                </>
+              )}
+
+              {/* On Public Landing Page, show shortcut to Dashboard */}
+              {!isAppPage && (
+                <Link
+                  href="/dashboard"
+                  className="hidden sm:inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#006B3F] hover:bg-[#005432] text-white font-extrabold text-xs transition-all shadow-md"
+                >
+                  <LayoutDashboard className="w-3.5 h-3.5" />
+                  Go to Dashboard
+                </Link>
+              )}
 
               <div className="relative">
                 <button
@@ -280,28 +353,61 @@ export function Navbar() {
                       </div>
                     </div>
 
-                    <Link
-                      href="/dashboard"
-                      onClick={() => setShowUserMenu(false)}
-                      className="p-2.5 rounded-xl hover:bg-slate-100 text-slate-700 font-semibold flex items-center gap-2"
-                    >
-                      <LayoutDashboard className="w-4 h-4 text-[#006B3F]" /> Merchant Dashboard
-                    </Link>
-                    <Link
-                      href="/orders"
-                      onClick={() => setShowUserMenu(false)}
-                      className="p-2.5 rounded-xl hover:bg-slate-100 text-slate-700 font-semibold flex items-center gap-2"
-                    >
-                      <ShoppingBag className="w-4 h-4 text-blue-600" /> Buyer Orders
-                    </Link>
-                    {user.role === 'admin' && (
-                      <Link
-                        href="/admin"
-                        onClick={() => setShowUserMenu(false)}
-                        className="p-2.5 rounded-xl hover:bg-purple-50 text-purple-700 font-semibold flex items-center gap-2"
-                      >
-                        <ShieldAlert className="w-4 h-4 text-purple-600" /> Compliance Admin
-                      </Link>
+                    {user.role === 'admin' ? (
+                      <>
+                        <Link
+                          href="/admin?tab=overview"
+                          onClick={() => setShowUserMenu(false)}
+                          className="p-2.5 rounded-xl hover:bg-purple-50 text-purple-700 font-semibold flex items-center gap-2"
+                        >
+                          <BarChart3 className="w-4 h-4 text-purple-600" /> Platform Overview
+                        </Link>
+                        <Link
+                          href="/admin?tab=disputes"
+                          onClick={() => setShowUserMenu(false)}
+                          className="p-2.5 rounded-xl hover:bg-purple-50 text-purple-700 font-semibold flex items-center gap-2"
+                        >
+                          <ShieldAlert className="w-4 h-4 text-purple-600" /> Dispute Queue
+                        </Link>
+                        <Link
+                          href="/admin?tab=transactions"
+                          onClick={() => setShowUserMenu(false)}
+                          className="p-2.5 rounded-xl hover:bg-purple-50 text-purple-700 font-semibold flex items-center gap-2"
+                        >
+                          <ArrowUpDown className="w-4 h-4 text-purple-600" /> All Transactions
+                        </Link>
+                        <Link
+                          href="/admin?tab=users"
+                          onClick={() => setShowUserMenu(false)}
+                          className="p-2.5 rounded-xl hover:bg-purple-50 text-purple-700 font-semibold flex items-center gap-2"
+                        >
+                          <Users className="w-4 h-4 text-purple-600" /> User Directory
+                        </Link>
+                        <Link
+                          href="/admin?tab=withdrawals"
+                          onClick={() => setShowUserMenu(false)}
+                          className="p-2.5 rounded-xl hover:bg-purple-50 text-purple-700 font-semibold flex items-center gap-2"
+                        >
+                          <Landmark className="w-4 h-4 text-purple-600" /> Withdrawals
+                        </Link>
+                      </>
+                    ) : (
+                      <>
+                        <Link
+                          href="/dashboard"
+                          onClick={() => setShowUserMenu(false)}
+                          className="p-2.5 rounded-xl hover:bg-slate-100 text-slate-700 font-semibold flex items-center gap-2"
+                        >
+                          <LayoutDashboard className="w-4 h-4 text-[#006B3F]" /> Merchant Dashboard
+                        </Link>
+                        <Link
+                          href="/orders"
+                          onClick={() => setShowUserMenu(false)}
+                          className="p-2.5 rounded-xl hover:bg-slate-100 text-slate-700 font-semibold flex items-center gap-2"
+                        >
+                          <ShoppingBag className="w-4 h-4 text-blue-600" /> Buyer Orders
+                        </Link>
+                      </>
                     )}
 
                     <div className="border-t border-slate-100 my-1" />
@@ -368,7 +474,47 @@ export function Navbar() {
           )}
 
           <div className="flex flex-col gap-1 text-sm font-extrabold">
-            {user ? (
+            {user?.role === 'admin' ? (
+              <>
+                <Link
+                  href="/admin?tab=overview"
+                  className="p-3 rounded-xl flex items-center gap-2.5 transition-all text-purple-700 bg-purple-50"
+                >
+                  <BarChart3 className="w-4 h-4 text-purple-600" /> Platform Overview
+                </Link>
+                <Link
+                  href="/admin?tab=disputes"
+                  className="p-3 rounded-xl flex items-center gap-2.5 transition-all text-slate-700 hover:bg-slate-50"
+                >
+                  <ShieldAlert className="w-4 h-4 text-purple-600" /> Dispute Queue
+                </Link>
+                <Link
+                  href="/admin?tab=transactions"
+                  className="p-3 rounded-xl flex items-center gap-2.5 transition-all text-slate-700 hover:bg-slate-50"
+                >
+                  <ArrowUpDown className="w-4 h-4 text-purple-600" /> All Transactions
+                </Link>
+                <Link
+                  href="/admin?tab=users"
+                  className="p-3 rounded-xl flex items-center gap-2.5 transition-all text-slate-700 hover:bg-slate-50"
+                >
+                  <Users className="w-4 h-4 text-purple-600" /> User Directory
+                </Link>
+                <Link
+                  href="/admin?tab=withdrawals"
+                  className="p-3 rounded-xl flex items-center gap-2.5 transition-all text-slate-700 hover:bg-slate-50"
+                >
+                  <Landmark className="w-4 h-4 text-purple-600" /> Withdrawals
+                </Link>
+                <div className="border-t border-slate-100 my-1" />
+                <button
+                  onClick={logout}
+                  className="p-3 rounded-xl hover:bg-rose-50 text-rose-600 font-semibold flex items-center gap-2 text-left text-xs"
+                >
+                  <LogOut className="w-4 h-4" /> Sign Out Admin
+                </button>
+              </>
+            ) : user ? (
               <>
                 <Link
                   href="/dashboard"
@@ -381,6 +527,16 @@ export function Navbar() {
                   <LayoutDashboard className="w-4 h-4 text-[#006B3F]" /> Merchant Dashboard
                 </Link>
                 <Link
+                  href="/active-contracts"
+                  className={`p-3 rounded-xl flex items-center gap-2.5 transition-all ${
+                    pathname.startsWith('/active-contracts')
+                      ? 'bg-emerald-50 text-[#006B3F]'
+                      : 'text-slate-700 hover:bg-slate-50'
+                  }`}
+                >
+                  <ShieldCheck className="w-4 h-4 text-[#006B3F]" /> Active Contracts
+                </Link>
+                <Link
                   href="/orders"
                   className={`p-3 rounded-xl flex items-center gap-2.5 transition-all ${
                     pathname.startsWith('/orders')
@@ -390,18 +546,6 @@ export function Navbar() {
                 >
                   <ShoppingBag className="w-4 h-4 text-[#006B3F]" /> Buyer Orders
                 </Link>
-                {user.role === 'admin' && (
-                  <Link
-                    href="/admin"
-                    className={`p-3 rounded-xl flex items-center gap-2.5 transition-all ${
-                      pathname.startsWith('/admin')
-                        ? 'bg-purple-50 text-purple-700'
-                        : 'text-purple-600 hover:bg-purple-50'
-                    }`}
-                  >
-                    <ShieldAlert className="w-4 h-4 text-purple-600" /> Compliance Admin
-                  </Link>
-                )}
                 <div className="border-t border-slate-100 my-1" />
                 <button
                   onClick={logout}

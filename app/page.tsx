@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { Navbar } from '@/components/layout/Navbar';
 import { Footer } from '@/components/layout/Footer';
-import { formatNaira, calculateEscrowFee } from '@/lib/formatters';
+import { formatNaira, calculateEscrowFee, formatNumberInput, parseNumberInput } from '@/lib/formatters';
 import {
   ShieldCheck,
   Lock,
@@ -29,8 +29,8 @@ export default function HomePage() {
   const { openAuthModal } = useAuth();
 
   // Interactive Fee Calculator State
-  const [calcAmount, setCalcAmount] = useState<string>('25000');
-  const numAmount = (parseFloat(calcAmount) || 0) * 100;
+  const [calcAmount, setCalcAmount] = useState<string>('25,000');
+  const numAmount = parseNumberInput(calcAmount) * 100;
   const feeKobo = calculateEscrowFee(numAmount);
   const netKobo = Math.max(0, numAmount - feeKobo);
 
@@ -104,11 +104,12 @@ export default function HomePage() {
               <div className="relative">
                 <span className="absolute left-4 top-3 text-slate-400 font-mono font-bold">₦</span>
                 <input
-                  type="number"
+                  type="text"
+                  inputMode="numeric"
                   value={calcAmount}
-                  onChange={(e) => setCalcAmount(e.target.value)}
+                  onChange={(e) => setCalcAmount(formatNumberInput(e.target.value))}
                   className="w-full bg-slate-50 border border-slate-200 rounded-2xl pl-9 pr-4 py-3 text-lg font-mono font-bold text-slate-900 focus:outline-none focus:border-[#006B3F]"
-                  placeholder="25000"
+                  placeholder="25,000"
                 />
               </div>
             </div>
