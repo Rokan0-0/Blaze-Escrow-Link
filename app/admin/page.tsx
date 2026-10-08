@@ -184,6 +184,20 @@ function AdminContent() {
     }
   }, [user]);
 
+  useEffect(() => {
+    if (actionSuccess) {
+      const timer = setTimeout(() => setActionSuccess(''), 4500);
+      return () => clearTimeout(timer);
+    }
+  }, [actionSuccess]);
+
+  useEffect(() => {
+    if (actionError) {
+      const timer = setTimeout(() => setActionError(''), 4500);
+      return () => clearTimeout(timer);
+    }
+  }, [actionError]);
+
   // Execute binding dispute resolution
   const handleExecuteResolution = async (
     dispute: Dispute,
@@ -398,26 +412,32 @@ function AdminContent() {
           </div>
         </div>
 
-        {/* Global Notifications */}
-        {actionError && (
-          <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-bold flex items-center justify-between">
-            <span>{actionError}</span>
-            <button onClick={() => setActionError('')} className="text-rose-500 hover:text-rose-800">
-              <XCircle className="w-4 h-4" />
-            </button>
-          </div>
-        )}
-        {actionSuccess && (
-          <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-[#006B3F] text-xs font-bold flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-[#006B3F] shrink-0" />
-              <span>{actionSuccess}</span>
+        {/* Floating Toast Pop-up Notification Banner */}
+        <div className="fixed top-5 right-4 left-4 sm:left-auto z-50 max-w-md w-full space-y-2 pointer-events-auto">
+          {actionError && (
+            <div className="p-4 rounded-2xl bg-slate-900/95 text-rose-300 border border-rose-500/40 text-xs font-extrabold flex items-center justify-between shadow-2xl backdrop-blur-md animate-in slide-in-from-top-4 duration-200">
+              <div className="flex items-center gap-2.5">
+                <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+                <span>{actionError}</span>
+              </div>
+              <button onClick={() => setActionError('')} className="p-1 text-slate-400 hover:text-white shrink-0 ml-2">
+                <X className="w-4 h-4" />
+              </button>
             </div>
-            <button onClick={() => setActionSuccess('')} className="text-emerald-700 hover:text-emerald-900">
-              <XCircle className="w-4 h-4" />
-            </button>
-          </div>
-        )}
+          )}
+
+          {actionSuccess && (
+            <div className="p-4 rounded-2xl bg-[#005432]/95 text-white border border-emerald-500/50 text-xs font-extrabold flex items-center justify-between shadow-2xl backdrop-blur-md animate-in slide-in-from-top-4 duration-200">
+              <div className="flex items-center gap-2.5">
+                <CheckCircle2 className="w-4 h-4 text-emerald-300 shrink-0" />
+                <span>{actionSuccess}</span>
+              </div>
+              <button onClick={() => setActionSuccess('')} className="p-1 text-emerald-200 hover:text-white shrink-0 ml-2">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+        </div>
 
         {/* Dedicated Admin Navigation Tab Bar */}
         <div className="bg-white border border-slate-200 rounded-2xl p-1.5 shadow-2xs flex flex-wrap items-center gap-1">

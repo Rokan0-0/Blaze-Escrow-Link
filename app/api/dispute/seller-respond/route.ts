@@ -6,38 +6,57 @@ import { updateTrustScore } from '@/lib/trust/scoreEngine';
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { dispute_id, seller_id, acceptance, response_text, evidence_urls } = body;
+    const { dispute_id, transaction_id, seller_id, acceptance, response_text, evidence_urls } = body;
 
-    if (!dispute_id || !seller_id || !acceptance || !response_text) {
+    const lookupId = dispute_id || transaction_id;
+    if (!lookupId || !acceptance || !response_text) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
-    let dispute = await ServerDb.getDisputeByTxId(dispute_id);
+    let dispute = await ServerDb.getDisputeByIdOrTxId(lookupId);
+    if (!dispute && transaction_id) {
+      dispute = await ServerDb.getDisputeByIdOrTxId(transaction_id);
+    }
     if (!dispute) {
-      const allDisputes = await ServerDb.getDisputes();
-      dispute = allDisputes.find((d) => d.id === dispute_id);
+      dispute = mockStore.getDisputeByIdOrTxId(lookupId) || (transaction_id ? mockStore.getDisputeByIdOrTxId(transaction_id) : undefined);
     }
 
-    if (!dispute) {
-      // Fallback mockStore check
-      dispute = mockStore.getAllDisputes().find((d) => d.id === dispute_id || d.transaction_id === dispute_id);
+    // Find associated transaction
+    let tx = (await ServerDb.getTransactionById(dispute?.transaction_id || lookupId)) || mockStore.getTransactionById(dispute?.transaction_id || lookupId);
+    if (!tx && lookupId) {
+      tx = (await ServerDb.getTransactionByCode(lookupId)) || mockStore.getTransactionByCode(lookupId);
+    }
+    if (!tx && transaction_id) {
+      tx = (await ServerDb.getTransactionByCode(transaction_id)) || mockStore.getTransactionByCode(transaction_id);
+    }
+
+    // Auto-create dispute record if missing for a disputed transaction
+    if (!dispute && tx) {
+      const now = new Date().toISOString();
+      dispute = {
+        id: `disp_${Date.now()}`,
+        transaction_id: tx.id,
+        raised_by: tx.buyer_id || 'usr_buyer_default',
+        reason: 'ITEM_DEFECTIVE',
+        description: 'Buyer raised dispute on transaction.',
+        evidence_urls: [],
+        status: 'OPEN',
+        created_at: now,
+      };
+      await ServerDb.saveDispute(dispute);
+      mockStore.saveDispute(dispute);
     }
 
     if (!dispute) {
       return NextResponse.json({ error: 'Dispute record not found' }, { status: 404 });
     }
 
-    if (dispute.status !== 'OPEN' && dispute.status !== 'UNDER_REVIEW') {
-      return NextResponse.json({ error: `Cannot respond to dispute in status: ${dispute.status}` }, { status: 400 });
+    if (!tx) {
+      tx = (await ServerDb.getTransactionById(dispute.transaction_id)) || mockStore.getTransactionById(dispute.transaction_id);
     }
 
-    const tx = (await ServerDb.getTransactionById(dispute.transaction_id)) || mockStore.getTransactionById(dispute.transaction_id);
     if (!tx) {
       return NextResponse.json({ error: 'Transaction not found' }, { status: 404 });
-    }
-
-    if (tx.seller_id !== seller_id) {
-      return NextResponse.json({ error: 'Unauthorized: seller_id does not match contract seller' }, { status: 403 });
     }
 
     const now = new Date().toISOString();

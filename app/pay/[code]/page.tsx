@@ -186,6 +186,20 @@ export default function EscrowPaymentPage() {
     return () => clearInterval(interval);
   }, [code]);
 
+  useEffect(() => {
+    if (actionSuccess) {
+      const timer = setTimeout(() => setActionSuccess(''), 4500);
+      return () => clearTimeout(timer);
+    }
+  }, [actionSuccess]);
+
+  useEffect(() => {
+    if (actionError) {
+      const timer = setTimeout(() => setActionError(''), 4500);
+      return () => clearTimeout(timer);
+    }
+  }, [actionError]);
+
   if (notFound) {
     return (
       <div className="min-h-screen bg-[#F8FAFC] flex flex-col">
@@ -211,9 +225,69 @@ export default function EscrowPaymentPage() {
 
   const isSeller = !!user && user.id === tx.seller_id;
   const isBuyer = !!user && !!tx.buyer_id && user.id === tx.buyer_id;
+  const isAdmin = !!user && user.role === 'admin';
   const isPotentialBuyer = !!user && !isSeller && tx.state === 'CREATED';
   const isGuest = !user;
-  const isThirdPartyOnClaimedContract = !isSeller && !isBuyer && tx.state !== 'CREATED';
+  const isThirdPartyOnClaimedContract = !isSeller && !isBuyer && !isAdmin && tx.state !== 'CREATED';
+
+  if (isThirdPartyOnClaimedContract) {
+    return (
+      <div className="min-h-screen bg-[#F8FAFC] flex flex-col">
+        <Navbar />
+        <main className="flex-1 flex items-center justify-center p-4">
+          <div className="text-center max-w-md w-full space-y-5 bg-white border border-slate-200 rounded-3xl p-8 shadow-sm">
+            <div className="w-16 h-16 rounded-2xl bg-amber-50 border border-amber-200 text-amber-600 flex items-center justify-center mx-auto shadow-2xs">
+              <Lock className="w-8 h-8" />
+            </div>
+            <div className="space-y-2">
+              <span className="px-3 py-1 rounded-full bg-amber-100 text-amber-800 text-[10px] font-mono font-extrabold uppercase border border-amber-200">
+                Private Escrow Contract
+              </span>
+              <h2 className="text-xl font-extrabold text-slate-900">Contract In Progress</h2>
+              <p className="text-xs text-slate-500 leading-relaxed max-w-xs mx-auto">
+                This escrow contract (<strong className="font-mono text-slate-800">{tx.code}</strong>) is active and private to the seller and buyer.
+              </p>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 text-left space-y-2 text-xs">
+              <div className="flex items-center justify-between text-slate-600 font-mono">
+                <span>Contract State:</span>
+                <span className="font-bold text-slate-900 uppercase">{tx.state}</span>
+              </div>
+              <p className="text-[11px] text-slate-500 leading-normal">
+                For financial security and buyer privacy, transaction details, tracking, and dispute controls are restricted to authorized parties.
+              </p>
+            </div>
+
+            <div className="pt-2 flex flex-col gap-2">
+              {!user ? (
+                <button
+                  onClick={openAuthModal}
+                  className="w-full py-3 px-4 rounded-2xl bg-[#006B3F] hover:bg-[#005432] text-white font-extrabold text-xs transition-all shadow-md text-center"
+                >
+                  Sign In (Buyer or Seller)
+                </button>
+              ) : (
+                <Link
+                  href="/dashboard"
+                  className="w-full py-3 px-4 rounded-2xl bg-[#006B3F] hover:bg-[#005432] text-white font-extrabold text-xs transition-all shadow-md text-center"
+                >
+                  Go to Dashboard
+                </Link>
+              )}
+              <Link
+                href="/"
+                className="w-full py-2.5 px-4 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-all text-center"
+              >
+                Back to Home
+              </Link>
+            </div>
+          </div>
+        </main>
+        <Footer />
+      </div>
+    );
+  }
 
   const handleCopyLink = () => {
     if (typeof window !== 'undefined') {
@@ -365,19 +439,32 @@ export default function EscrowPaymentPage() {
         {/* State Progress */}
         <StateProgressBar state={tx.state} />
 
-        {/* Action Alerts */}
-        {actionError && (
-          <div className="p-3.5 sm:p-4 rounded-2xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-bold flex items-center gap-2">
-            <AlertTriangle className="w-4 h-4 shrink-0" />
-            {actionError}
-          </div>
-        )}
-        {actionSuccess && (
-          <div className="p-3.5 sm:p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold flex items-center gap-2">
-            <Check className="w-4 h-4 shrink-0 text-[#006B3F]" />
-            {actionSuccess}
-          </div>
-        )}
+        {/* Floating Toast Pop-up Notification Banner */}
+        <div className="fixed top-5 right-4 left-4 sm:left-auto z-50 max-w-md w-full space-y-2 pointer-events-auto">
+          {actionError && (
+            <div className="p-4 rounded-2xl bg-slate-900/95 text-rose-300 border border-rose-500/40 text-xs font-extrabold flex items-center justify-between shadow-2xl backdrop-blur-md animate-in slide-in-from-top-4 duration-200">
+              <div className="flex items-center gap-2.5">
+                <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
+                <span>{actionError}</span>
+              </div>
+              <button onClick={() => setActionError('')} className="p-1 text-slate-400 hover:text-white shrink-0 ml-2">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+
+          {actionSuccess && (
+            <div className="p-4 rounded-2xl bg-[#005432]/95 text-white border border-emerald-500/50 text-xs font-extrabold flex items-center justify-between shadow-2xl backdrop-blur-md animate-in slide-in-from-top-4 duration-200">
+              <div className="flex items-center gap-2.5">
+                <CheckCircle2 className="w-4 h-4 text-emerald-300 shrink-0" />
+                <span>{actionSuccess}</span>
+              </div>
+              <button onClick={() => setActionSuccess('')} className="p-1 text-emerald-200 hover:text-white shrink-0 ml-2">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+        </div>
 
         {/* Claimed Link Banner for Third Parties */}
         {isThirdPartyOnClaimedContract && (

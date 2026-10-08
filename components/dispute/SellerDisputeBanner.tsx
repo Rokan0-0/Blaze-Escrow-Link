@@ -86,10 +86,19 @@ export function SellerDisputeBanner({ tx, onUpdate }: SellerDisputeBannerProps) 
     }
   };
 
+  const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
+
+  useEffect(() => {
+    if (toast) {
+      const timer = setTimeout(() => setToast(null), 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [toast]);
+
   const handleSellerRespondSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!responseText.trim()) {
-      alert('Please enter your response statement.');
+      setToast({ msg: 'Please enter your response statement.', type: 'error' });
       return;
     }
     setIsSubmitting(true);
@@ -99,6 +108,7 @@ export function SellerDisputeBanner({ tx, onUpdate }: SellerDisputeBannerProps) 
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           dispute_id: dispute.id,
+          transaction_id: tx.id,
           seller_id: tx.seller_id,
           acceptance: selectedOption,
           response_text: responseText,
@@ -109,14 +119,18 @@ export function SellerDisputeBanner({ tx, onUpdate }: SellerDisputeBannerProps) 
       if (res.ok) {
         const data = await res.json();
         if (data.dispute) setDispute(data.dispute);
+        setToast({
+          msg: selectedOption === 'CONTESTED' ? 'Counter-appeal statement & evidence submitted!' : 'Dispute response submitted successfully.',
+          type: 'success',
+        });
         fetchDispute();
         if (onUpdate) onUpdate();
       } else {
         const err = await res.json();
-        alert(err.error || 'Failed to submit response');
+        setToast({ msg: err.error || 'Failed to submit response', type: 'error' });
       }
     } catch (e: any) {
-      alert(e.message || 'Error submitting response');
+      setToast({ msg: e.message || 'Error submitting response', type: 'error' });
     } finally {
       setIsSubmitting(false);
     }
@@ -124,7 +138,7 @@ export function SellerDisputeBanner({ tx, onUpdate }: SellerDisputeBannerProps) 
 
   const handleReturnConfirmSubmit = async () => {
     if (confirmCondition === 'DAMAGED' && (damageUrls.length === 0 || !damageNote.trim())) {
-      alert('Damage claim requires a description and at least 1 photo evidence file.');
+      setToast({ msg: 'Damage claim requires a description and at least 1 photo evidence file.', type: 'error' });
       return;
     }
 
@@ -144,14 +158,15 @@ export function SellerDisputeBanner({ tx, onUpdate }: SellerDisputeBannerProps) 
 
       if (res.ok) {
         setShowConfirmModal(false);
+        setToast({ msg: 'Return package receipt confirmed!', type: 'success' });
         fetchDispute();
         if (onUpdate) onUpdate();
       } else {
         const err = await res.json();
-        alert(err.error || 'Failed to confirm return receipt');
+        setToast({ msg: err.error || 'Failed to confirm return receipt', type: 'error' });
       }
     } catch (e: any) {
-      alert(e.message || 'Error confirming return');
+      setToast({ msg: e.message || 'Error confirming return', type: 'error' });
     } finally {
       setIsSubmittingConfirm(false);
     }
@@ -160,7 +175,26 @@ export function SellerDisputeBanner({ tx, onUpdate }: SellerDisputeBannerProps) 
   const hasResponded = !!dispute.seller_acceptance;
 
   return (
-    <div className="bg-white border-l-4 border-l-rose-500 border border-slate-200 rounded-3xl p-5 sm:p-6 shadow-md space-y-4 my-4 transition-all">
+    <>
+      {toast && (
+        <div className="fixed top-5 right-4 left-4 sm:left-auto z-50 max-w-md w-full pointer-events-auto">
+          <div
+            className={`p-4 rounded-2xl text-white text-xs font-extrabold flex items-center justify-between shadow-2xl backdrop-blur-md animate-in slide-in-from-top-4 duration-200 ${
+              toast.type === 'success' ? 'bg-[#005432]/95 border border-emerald-500/50' : 'bg-slate-900/95 text-rose-300 border border-rose-500/40'
+            }`}
+          >
+            <div className="flex items-center gap-2.5">
+              {toast.type === 'success' ? <CheckCircle2 className="w-4 h-4 text-emerald-300 shrink-0" /> : <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />}
+              <span>{toast.msg}</span>
+            </div>
+            <button onClick={() => setToast(null)} className="p-1 text-slate-300 hover:text-white shrink-0 ml-2">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div className="bg-white border-l-4 border-l-rose-500 border border-slate-200 rounded-3xl p-5 sm:p-6 shadow-md space-y-4 my-4 transition-all">
       {/* Banner Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3.5">
         <div className="cursor-pointer select-none" onClick={() => setIsExpanded(!isExpanded)}>
@@ -478,5 +512,6 @@ export function SellerDisputeBanner({ tx, onUpdate }: SellerDisputeBannerProps) 
         </div>
       )}
     </div>
+    </>
   );
 }

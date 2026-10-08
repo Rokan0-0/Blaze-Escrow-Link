@@ -130,6 +130,17 @@ export class ServerDb {
     return data as Dispute[];
   }
 
+  static async getDisputeById(id: string): Promise<Dispute | undefined> {
+    await this.ensureSeeded();
+    const { data, error } = await supabaseAdmin
+      .from('disputes')
+      .select('*')
+      .eq('id', id)
+      .maybeSingle();
+    if (error || !data) return undefined;
+    return data as Dispute;
+  }
+
   static async getDisputeByTxId(txId: string): Promise<Dispute | undefined> {
     await this.ensureSeeded();
     const { data, error } = await supabaseAdmin
@@ -139,6 +150,16 @@ export class ServerDb {
       .maybeSingle();
     if (error || !data) return undefined;
     return data as Dispute;
+  }
+
+  static async getDisputeByIdOrTxId(idOrTxId: string): Promise<Dispute | undefined> {
+    let d = await this.getDisputeById(idOrTxId);
+    if (!d) d = await this.getDisputeByTxId(idOrTxId);
+    if (!d) {
+      const all = await this.getDisputes();
+      d = all.find((item) => item.id === idOrTxId || item.transaction_id === idOrTxId);
+    }
+    return d;
   }
 
   static async saveDispute(dispute: Dispute): Promise<Dispute> {

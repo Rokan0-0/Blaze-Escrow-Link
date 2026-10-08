@@ -388,7 +388,11 @@ class LocalStore {
   }
 
   getDisputeByTxId(txId: string): Dispute | undefined {
-    return Array.from(this.disputes.values()).find((d) => d.transaction_id === txId);
+    return Array.from(this.disputes.values()).find((d) => d.transaction_id === txId || d.id === txId);
+  }
+
+  getDisputeByIdOrTxId(idOrTxId: string): Dispute | undefined {
+    return Array.from(this.disputes.values()).find((d) => d.id === idOrTxId || d.transaction_id === idOrTxId);
   }
 
   saveDispute(dispute: Dispute): Dispute {
