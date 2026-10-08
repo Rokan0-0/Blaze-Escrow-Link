@@ -17,6 +17,7 @@ import { SellerDisputeBanner } from '@/components/dispute/SellerDisputeBanner';
 import confetti from 'canvas-confetti';
 import {
   ShieldCheck,
+  ShieldAlert,
   Lock,
   Copy,
   Check,
