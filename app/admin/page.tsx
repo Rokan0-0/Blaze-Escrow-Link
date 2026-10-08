@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { mockStore, MOCK_SELLER, MOCK_BUYER } from '@/lib/mock/store';
+import { mergeDispute } from '@/lib/db/serverDb';
 import { Dispute, EscrowTransaction, Profile, Withdrawal } from '@/lib/mock/types';
 import { formatNaira } from '@/lib/formatters';
 import { Navbar } from '@/components/layout/Navbar';
@@ -154,8 +155,35 @@ function AdminContent() {
       if (txData.transactions) setTransactions(txData.transactions);
       else setTransactions(mockStore.getAllTransactions());
 
-      if (dispData.disputes) setDisputes(dispData.disputes);
-      else setDisputes(mockStore.getAllDisputes());
+      if (dispData.disputes) {
+        setDisputes((prev) => {
+          const map = new Map<string, Dispute>();
+          mockStore.getAllDisputes().forEach((d) => map.set(d.id, d));
+          prev.forEach((d) => {
+            const existing = map.get(d.id);
+            if (existing) {
+              const merged = mergeDispute(d, existing);
+              if (merged) map.set(d.id, merged);
+            } else {
+              map.set(d.id, d);
+            }
+          });
+          dispData.disputes.forEach((d: Dispute) => {
+            const existing = map.get(d.id);
+            if (existing) {
+              const merged = mergeDispute(d, existing);
+              if (merged) map.set(d.id, merged);
+            } else {
+              map.set(d.id, d);
+            }
+          });
+          return Array.from(map.values()).sort(
+            (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+          );
+        });
+      } else {
+        setDisputes(mockStore.getAllDisputes());
+      }
 
       if (profData.profiles && profData.profiles.length > 0) {
         const map = new Map<string, Profile>();
@@ -177,8 +205,13 @@ function AdminContent() {
   useEffect(() => {
     if (user?.role === 'admin') {
       loadData();
-      const interval = setInterval(loadData, 5000);
-      return () => clearInterval(interval);
+      const interval = setInterval(loadData, 3000);
+      const handleUpdated = () => loadData();
+      window.addEventListener('blaze_data_updated', handleUpdated);
+      return () => {
+        clearInterval(interval);
+        window.removeEventListener('blaze_data_updated', handleUpdated);
+      };
     }
   }, [user]);
 
