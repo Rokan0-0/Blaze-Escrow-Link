@@ -10,7 +10,7 @@ interface SellerDisputeBannerProps {
 
 export function SellerDisputeBanner({ tx, onUpdate }: SellerDisputeBannerProps) {
   const [dispute, setDispute] = useState<Dispute | null>(null);
-  const [isExpanded, setIsExpanded] = useState(true);
+  const [isExpanded, setIsExpanded] = useState(false);
   const [selectedOption, setSelectedOption] = useState<'NO_RETURN' | 'RETURN_REQUIRED' | 'CONTESTED'>('RETURN_REQUIRED');
   const [responseText, setResponseText] = useState('');
   const [evidenceUrls, setEvidenceUrls] = useState<string[]>([]);

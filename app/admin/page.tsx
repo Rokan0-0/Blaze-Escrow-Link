@@ -104,9 +104,7 @@ function AdminContent() {
     setExpandedDisputes((prev) => {
       const current = prev[disputeId];
       if (current === undefined) {
-        const d = disputes.find((item) => item.id === disputeId);
-        const isDefaultExpanded = d?.status === 'OPEN' || d?.status === 'UNDER_REVIEW';
-        return { ...prev, [disputeId]: !isDefaultExpanded };
+        return { ...prev, [disputeId]: true };
       }
       return { ...prev, [disputeId]: !current };
     });
@@ -116,7 +114,7 @@ function AdminContent() {
     if (expandedDisputes[d.id] !== undefined) {
       return expandedDisputes[d.id];
     }
-    return d.status === 'OPEN' || d.status === 'UNDER_REVIEW';
+    return false;
   };
 
   const expandAllDisputes = () => {
