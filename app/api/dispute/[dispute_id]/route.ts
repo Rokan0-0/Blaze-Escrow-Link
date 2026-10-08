@@ -9,14 +9,9 @@ export async function GET(
   try {
     const { dispute_id } = await params;
 
-    let dispute = await ServerDb.getDisputeByTxId(dispute_id);
+    let dispute = await ServerDb.getDisputeByIdOrTxId(dispute_id);
     if (!dispute) {
-      const all = await ServerDb.getDisputes();
-      dispute = all.find((d) => d.id === dispute_id);
-    }
-
-    if (!dispute) {
-      dispute = mockStore.getAllDisputes().find((d) => d.id === dispute_id || d.transaction_id === dispute_id);
+      dispute = mockStore.getDisputeByIdOrTxId(dispute_id);
     }
 
     if (!dispute) {

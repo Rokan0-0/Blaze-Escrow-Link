@@ -1,6 +1,35 @@
 import { supabaseAdmin } from '../supabase/admin';
 import { Profile, EscrowTransaction, Dispute, DisputeMessage, NotificationItem, Withdrawal } from '../mock/types';
-import { MOCK_SELLER, MOCK_BUYER, MOCK_ADMIN, INITIAL_TRANSACTIONS, INITIAL_DISPUTES, INITIAL_DISPUTE_MESSAGES, INITIAL_NOTIFICATIONS } from '../mock/store';
+import { mockStore, MOCK_SELLER, MOCK_BUYER, MOCK_ADMIN, INITIAL_TRANSACTIONS, INITIAL_DISPUTES, INITIAL_DISPUTE_MESSAGES, INITIAL_NOTIFICATIONS } from '../mock/store';
+
+export function mergeDispute(primary?: Dispute, secondary?: Dispute): Dispute | undefined {
+  if (!primary && !secondary) return undefined;
+  if (!primary) return secondary;
+  if (!secondary) return primary;
+
+  return {
+    ...secondary,
+    ...primary,
+    seller_acceptance: primary.seller_acceptance || secondary.seller_acceptance,
+    seller_response: primary.seller_response || secondary.seller_response,
+    seller_evidence_urls:
+      (primary.seller_evidence_urls && primary.seller_evidence_urls.length > 0)
+        ? primary.seller_evidence_urls
+        : (secondary.seller_evidence_urls || []),
+    seller_responded_at: primary.seller_responded_at || secondary.seller_responded_at,
+    resolution_path: primary.resolution_path || secondary.resolution_path,
+    damage_claim_urls:
+      (primary.damage_claim_urls && primary.damage_claim_urls.length > 0)
+        ? primary.damage_claim_urls
+        : (secondary.damage_claim_urls || []),
+    damage_claim_note: primary.damage_claim_note || secondary.damage_claim_note,
+    damage_claimed_at: primary.damage_claimed_at || secondary.damage_claimed_at,
+    resolution_note: primary.resolution_note || secondary.resolution_note,
+    resolved_by: primary.resolved_by || secondary.resolved_by,
+    resolved_at: primary.resolved_at || secondary.resolved_at,
+    status: (primary.status && primary.status !== 'OPEN') ? primary.status : (secondary.status || primary.status),
+  };
+}
 
 export class ServerDb {
   private static seeded = false;
@@ -126,8 +155,29 @@ export class ServerDb {
       .from('disputes')
       .select('*')
       .order('created_at', { ascending: false });
-    if (error || !data) return [];
-    return data as Dispute[];
+
+    const dbList = (error || !data) ? [] : (data as Dispute[]);
+    const mockList = mockStore.getAllDisputes();
+
+    const map = new Map<string, Dispute>();
+    mockList.forEach((d) => map.set(d.id, d));
+
+    dbList.forEach((d) => {
+      const existing = map.get(d.id);
+      if (existing) {
+        const merged = mergeDispute(d, existing);
+        if (merged) map.set(d.id, merged);
+      } else {
+        map.set(d.id, d);
+      }
+    });
+
+    return Array.from(map.values()).sort((a, b) => {
+      const aScore = (a.seller_acceptance ? 2 : 0) + (a.seller_responded_at ? 1 : 0);
+      const bScore = (b.seller_acceptance ? 2 : 0) + (b.seller_responded_at ? 1 : 0);
+      if (aScore !== bScore) return bScore - aScore;
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    });
   }
 
   static async getDisputeById(id: string): Promise<Dispute | undefined> {
@@ -137,8 +187,10 @@ export class ServerDb {
       .select('*')
       .eq('id', id)
       .maybeSingle();
-    if (error || !data) return undefined;
-    return data as Dispute;
+
+    const dbDispute = (error || !data) ? undefined : (data as Dispute);
+    const mockDispute = mockStore.getAllDisputes().find((d) => d.id === id);
+    return mergeDispute(dbDispute, mockDispute);
   }
 
   static async getDisputeByTxId(txId: string): Promise<Dispute | undefined> {
@@ -148,14 +200,20 @@ export class ServerDb {
       .select('*')
       .eq('transaction_id', txId)
       .order('created_at', { ascending: false });
-    if (error || !data || data.length === 0) return undefined;
-    const sorted = [...(data as Dispute[])].sort((a, b) => {
-      const aScore = (a.seller_acceptance ? 2 : 0) + (a.seller_responded_at ? 1 : 0);
-      const bScore = (b.seller_acceptance ? 2 : 0) + (b.seller_responded_at ? 1 : 0);
-      if (aScore !== bScore) return bScore - aScore;
-      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-    });
-    return sorted[0];
+
+    let dbDispute: Dispute | undefined = undefined;
+    if (!error && data && data.length > 0) {
+      const sorted = [...(data as Dispute[])].sort((a, b) => {
+        const aScore = (a.seller_acceptance ? 2 : 0) + (a.seller_responded_at ? 1 : 0);
+        const bScore = (b.seller_acceptance ? 2 : 0) + (b.seller_responded_at ? 1 : 0);
+        if (aScore !== bScore) return bScore - aScore;
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      });
+      dbDispute = sorted[0];
+    }
+
+    const mockDispute = mockStore.getDisputeByTxId(txId);
+    return mergeDispute(dbDispute, mockDispute);
   }
 
   static async getDisputeByIdOrTxId(idOrTxId: string): Promise<Dispute | undefined> {
@@ -174,11 +232,13 @@ export class ServerDb {
         d = matches[0];
       }
     }
-    return d;
+    const mockDispute = mockStore.getDisputeByIdOrTxId(idOrTxId);
+    return mergeDispute(d, mockDispute);
   }
 
   static async saveDispute(dispute: Dispute): Promise<Dispute> {
     await this.ensureSeeded();
+    mockStore.saveDispute(dispute);
     const { data, error } = await supabaseAdmin
       .from('disputes')
       .upsert(dispute)
