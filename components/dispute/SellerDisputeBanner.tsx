@@ -25,6 +25,16 @@ export function SellerDisputeBanner({ tx, onUpdate }: SellerDisputeBannerProps) 
   const [isUploadingDamage, setIsUploadingDamage] = useState(false);
   const [isSubmittingConfirm, setIsSubmittingConfirm] = useState(false);
 
+  // Toast notification state & auto-dismiss timer
+  const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
+
+  useEffect(() => {
+    if (toast) {
+      const timer = setTimeout(() => setToast(null), 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [toast]);
+
   const fetchDispute = async () => {
     try {
       const res = await fetch(`/api/dispute/${tx.id}`);
@@ -85,15 +95,6 @@ export function SellerDisputeBanner({ tx, onUpdate }: SellerDisputeBannerProps) 
       setIsUploadingDamage(false);
     }
   };
-
-  const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
-
-  useEffect(() => {
-    if (toast) {
-      const timer = setTimeout(() => setToast(null), 4000);
-      return () => clearTimeout(timer);
-    }
-  }, [toast]);
 
   const handleSellerRespondSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
