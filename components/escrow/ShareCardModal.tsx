@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import Link from 'next/link';
 import { EscrowTransaction } from '@/lib/mock/types';
 import { formatNaira } from '@/lib/formatters';
 import { X, Copy, Check, Share2, MessageSquare, ExternalLink, ShieldCheck, Landmark } from 'lucide-react';
@@ -13,15 +14,14 @@ interface ShareCardModalProps {
 export function ShareCardModal({ transaction, onClose }: ShareCardModalProps) {
   const [copiedLink, setCopiedLink] = useState(false);
   const [copiedWhatsapp, setCopiedWhatsapp] = useState(false);
-  const [copiedInstagram, setCopiedInstagram] = useState(false);
+
+  const cleanCode = transaction.code.replace(/^#/, '');
 
   const paymentUrl = typeof window !== 'undefined'
-    ? `${window.location.origin}/pay/${encodeURIComponent(transaction.code)}`
-    : `https://blaze-escrow.ecobank.com/pay/${encodeURIComponent(transaction.code)}`;
+    ? `${window.location.origin}/pay/${cleanCode}`
+    : `https://blaze-escrow.ecobank.com/pay/${cleanCode}`;
 
   const whatsappMessage = `Hey! Pay securely for *${transaction.title}* (${formatNaira(transaction.amount)}) via Ecobank Blaze Escrow!\n\nFunds remain 100% safe in Ecobank vault until delivery is verified.\nPay via Escrow Link: ${paymentUrl}`;
-
-  const instagramCaption = `BUY SAFELY WITH ECOBANK ESCROW\nItem: ${transaction.title}\nPrice: ${formatNaira(transaction.amount)}\n\nProtected by Ecobank Blaze 256-bit vault. 0% payment risk for buyers & sellers!\nLink to pay: ${paymentUrl}`;
 
   const handleCopyLink = () => {
     navigator.clipboard.writeText(paymentUrl);
@@ -33,12 +33,6 @@ export function ShareCardModal({ transaction, onClose }: ShareCardModalProps) {
     navigator.clipboard.writeText(whatsappMessage);
     setCopiedWhatsapp(true);
     setTimeout(() => setCopiedWhatsapp(false), 2000);
-  };
-
-  const handleCopyInstagram = () => {
-    navigator.clipboard.writeText(instagramCaption);
-    setCopiedInstagram(true);
-    setTimeout(() => setCopiedInstagram(false), 2000);
   };
 
   const handleOpenWhatsappWeb = () => {
@@ -79,6 +73,7 @@ export function ShareCardModal({ transaction, onClose }: ShareCardModalProps) {
 
           {transaction.image_url && (
             <div className="relative w-full h-36 rounded-xl overflow-hidden bg-black/20 border border-white/20">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={transaction.image_url}
                 alt={transaction.title}
@@ -113,14 +108,31 @@ export function ShareCardModal({ transaction, onClose }: ShareCardModalProps) {
 
         {/* 1-Click Action Buttons */}
         <div className="space-y-2.5">
+          {/* Primary View Contract Button */}
+          <Link
+            href={`/pay/${cleanCode}`}
+            target="_blank"
+            className="w-full bg-[#006B3F] hover:bg-[#005432] text-white font-extrabold py-3 px-4 rounded-2xl text-xs flex items-center justify-center gap-2 transition-all shadow-md"
+          >
+            <ExternalLink className="w-4 h-4" /> View Contract
+          </Link>
+
           <button
             onClick={handleOpenWhatsappWeb}
-            className="w-full bg-[#25D366] hover:bg-[#20bd5a] text-white font-extrabold py-3 px-4 rounded-2xl text-xs transition-all shadow-md flex items-center justify-center gap-2"
+            className="w-full bg-[#25D366] hover:bg-[#20bd5a] text-white font-extrabold py-2.5 px-4 rounded-xl text-xs transition-all shadow-xs flex items-center justify-center gap-2"
           >
             <MessageSquare className="w-4 h-4" /> Direct Share to WhatsApp Chat
           </button>
 
           <div className="grid grid-cols-2 gap-2">
+            <button
+              onClick={handleCopyLink}
+              className="bg-slate-50 hover:bg-slate-100 text-slate-800 border border-slate-200 font-bold py-2.5 px-3 rounded-xl text-xs flex items-center justify-center gap-1.5 transition-all"
+            >
+              {copiedLink ? <Check className="w-4 h-4 text-[#006B3F]" /> : <Copy className="w-4 h-4" />}
+              {copiedLink ? 'Contract Link Copied!' : 'Copy Contract Link'}
+            </button>
+
             <button
               onClick={handleCopyWhatsapp}
               className="bg-slate-50 hover:bg-slate-100 text-slate-800 border border-slate-200 font-bold py-2.5 px-3 rounded-xl text-xs flex items-center justify-center gap-1.5 transition-all"
@@ -128,23 +140,7 @@ export function ShareCardModal({ transaction, onClose }: ShareCardModalProps) {
               {copiedWhatsapp ? <Check className="w-4 h-4 text-[#006B3F]" /> : <Copy className="w-4 h-4" />}
               {copiedWhatsapp ? 'Copied WhatsApp Msg' : 'Copy WhatsApp Format'}
             </button>
-
-            <button
-              onClick={handleCopyInstagram}
-              className="bg-slate-50 hover:bg-slate-100 text-slate-800 border border-slate-200 font-bold py-2.5 px-3 rounded-xl text-xs flex items-center justify-center gap-1.5 transition-all"
-            >
-              {copiedInstagram ? <Check className="w-4 h-4 text-[#006B3F]" /> : <Copy className="w-4 h-4" />}
-              {copiedInstagram ? 'Copied IG Caption' : 'Copy IG Caption'}
-            </button>
           </div>
-
-          <button
-            onClick={handleCopyLink}
-            className="w-full bg-[#006B3F] hover:bg-[#005432] text-white font-bold py-2.5 px-4 rounded-xl text-xs flex items-center justify-center gap-2 transition-all shadow-xs"
-          >
-            {copiedLink ? <Check className="w-4 h-4" /> : <ExternalLink className="w-4 h-4" />}
-            {copiedLink ? 'Payment URL Copied!' : 'Copy Direct Link URL'}
-          </button>
         </div>
       </div>
     </div>

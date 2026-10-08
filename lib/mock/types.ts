@@ -13,6 +13,8 @@ export interface Profile {
   credit_limit: number; // kobo
   simulated_balance: number; // kobo
   is_suspended?: boolean;
+  flagged?: boolean;
+  flagged_note?: string;
   created_at: string;
 }
 
@@ -29,13 +31,20 @@ export interface EscrowTransaction {
   amount: number; // kobo
   fee: number; // kobo
   net_amount: number; // kobo
-  state: 'CREATED' | 'PAID' | 'DISPATCHED' | 'CONFIRMED' | 'DISPUTED' | 'RELEASED' | 'REFUNDED' | 'CANCELLED' | 'EXPIRED';
+  state: 'CREATED' | 'PAID' | 'DISPATCHED' | 'CONFIRMED' | 'DISPUTED' | 'RELEASED' | 'REFUNDED' | 'CANCELLED' | 'EXPIRED' | 'AWAITING_RETURN' | 'RETURN_DISPATCHED' | 'RETURN_CONFIRMED' | 'PARTIAL_REFUND' | 'DAMAGE_CLAIMED';
   logistics?: 'GIG' | 'KWIK' | 'SENDBOX' | 'CAMPUS_DIRECT' | 'OTHER';
   tracking_id?: string;
   ussd_pin?: string;
   payment_method?: 'WALLET' | 'TRANSFER' | 'CARD';
   image_url?: string;
   transfer_account?: string;
+  partial_buyer_amount?: number; // kobo
+  partial_seller_amount?: number; // kobo
+  return_tracking_id?: string;
+  return_logistics?: string;
+  return_dispatched_at?: string;
+  return_confirmed_at?: string;
+  return_proof_urls?: string[];
   expires_at: string;
   dispatched_at?: string;
   delivered_at?: string;
@@ -58,15 +67,29 @@ export interface Dispute {
     confidence: number;
     reasoning: string;
   };
-  seller_response?: {
-    statement: string;
-    evidence_urls: string[];
-    submitted_at: string;
-  };
+  seller_acceptance?: 'NO_RETURN' | 'RETURN_REQUIRED' | 'CONTESTED';
+  seller_response?: string;
+  seller_evidence_urls?: string[];
+  seller_responded_at?: string;
+  resolution_path?: 'NO_RETURN' | 'RETURN_REQUIRED' | 'PARTIAL' | 'DAMAGE_CLAIMED';
+  partial_buyer_pct?: number;
+  damage_claim_urls?: string[];
+  damage_claim_note?: string;
+  damage_claimed_at?: string;
   resolution_note?: string;
   resolved_by?: string;
   created_at: string;
   resolved_at?: string;
+}
+
+export interface DisputeMessage {
+  id: string;
+  dispute_id: string;
+  sender_id: string;
+  sender_role: 'buyer' | 'seller' | 'admin';
+  message: string;
+  is_system: boolean;
+  created_at: string;
 }
 
 export interface NotificationItem {

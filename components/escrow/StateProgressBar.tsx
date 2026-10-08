@@ -2,7 +2,7 @@ import React from 'react';
 import { Check, ShieldAlert, Clock } from 'lucide-react';
 
 interface StateProgressBarProps {
-  state: 'CREATED' | 'PAID' | 'DISPATCHED' | 'CONFIRMED' | 'DISPUTED' | 'RELEASED' | 'REFUNDED' | 'CANCELLED' | 'EXPIRED';
+  state: 'CREATED' | 'PAID' | 'DISPATCHED' | 'CONFIRMED' | 'DISPUTED' | 'RELEASED' | 'REFUNDED' | 'CANCELLED' | 'EXPIRED' | 'AWAITING_RETURN' | 'RETURN_DISPATCHED' | 'RETURN_CONFIRMED' | 'PARTIAL_REFUND' | 'DAMAGE_CLAIMED';
 }
 
 const STEPS = [
@@ -13,20 +13,58 @@ const STEPS = [
 ];
 
 export function StateProgressBar({ state }: StateProgressBarProps) {
-  if (state === 'DISPUTED') {
+  if (['DISPUTED', 'AWAITING_RETURN', 'RETURN_DISPATCHED', 'RETURN_CONFIRMED', 'DAMAGE_CLAIMED', 'PARTIAL_REFUND'].includes(state)) {
+    let title = 'Dispute Active';
+    let subtitle = 'Funds frozen in Escrow vault pending resolution.';
+    let badge = 'FROZEN';
+    let colorClass = 'bg-rose-50 border-rose-200 text-rose-800';
+    let badgeClass = 'bg-rose-100 text-rose-700 border-rose-200';
+
+    if (state === 'AWAITING_RETURN') {
+      title = 'Item Return Requested';
+      subtitle = 'Seller requested item return. Buyer must dispatch and upload proof.';
+      badge = 'AWAITING RETURN';
+      colorClass = 'bg-amber-50 border-amber-200 text-amber-900';
+      badgeClass = 'bg-amber-100 text-amber-800 border-amber-200';
+    } else if (state === 'RETURN_DISPATCHED') {
+      title = 'Return Dispatched';
+      subtitle = 'Item is returning to seller. Awaiting seller receipt confirmation.';
+      badge = 'RETURN IN TRANSIT';
+      colorClass = 'bg-blue-50 border-blue-200 text-blue-900';
+      badgeClass = 'bg-blue-100 text-blue-800 border-blue-200';
+    } else if (state === 'RETURN_CONFIRMED') {
+      title = 'Return Confirmed';
+      subtitle = 'Seller confirmed item returned in acceptable condition. Ready for refund.';
+      badge = 'RETURN CONFIRMED';
+      colorClass = 'bg-emerald-50 border-emerald-200 text-emerald-900';
+      badgeClass = 'bg-emerald-100 text-emerald-800 border-emerald-200';
+    } else if (state === 'DAMAGE_CLAIMED') {
+      title = 'Damage Claim Filed';
+      subtitle = 'Seller reported returned item arrived damaged. Under compliance review.';
+      badge = 'DAMAGE CLAIMED';
+      colorClass = 'bg-rose-50 border-rose-200 text-rose-900';
+      badgeClass = 'bg-rose-100 text-rose-800 border-rose-200';
+    } else if (state === 'PARTIAL_REFUND') {
+      title = 'Partial Refund Resolved';
+      subtitle = 'Dispute resolved with a partial split between buyer and seller.';
+      badge = 'PARTIAL REFUND';
+      colorClass = 'bg-amber-50 border-amber-200 text-amber-900';
+      badgeClass = 'bg-amber-100 text-amber-800 border-amber-200';
+    }
+
     return (
-      <div className="bg-rose-50 border border-rose-200 rounded-2xl p-3.5 sm:p-4 flex items-center justify-between text-rose-800 shadow-2xs">
+      <div className={`${colorClass} border rounded-2xl p-3.5 sm:p-4 flex items-center justify-between shadow-2xs`}>
         <div className="flex items-center gap-2.5 sm:gap-3">
-          <div className="p-2 sm:p-2.5 rounded-xl bg-rose-100 text-rose-600 shrink-0">
-            <ShieldAlert className="w-4 h-4 sm:w-5 sm:h-5" />
+          <div className="p-2 sm:p-2.5 rounded-xl bg-white/80 shrink-0">
+            <ShieldAlert className="w-4 h-4 sm:w-5 sm:h-5 text-current" />
           </div>
           <div>
-            <h4 className="font-bold text-xs sm:text-sm text-slate-900">Dispute Active</h4>
-            <p className="text-[11px] sm:text-xs text-rose-700 leading-tight">Funds frozen in Escrow vault pending Ecobank review.</p>
+            <h4 className="font-bold text-xs sm:text-sm text-slate-900">{title}</h4>
+            <p className="text-[11px] sm:text-xs leading-tight opacity-90">{subtitle}</p>
           </div>
         </div>
-        <span className="px-2.5 py-1 rounded-full bg-rose-100 text-rose-700 font-mono text-[10px] sm:text-xs font-bold border border-rose-200 uppercase shrink-0">
-          FROZEN
+        <span className={`px-2.5 py-1 rounded-full font-mono text-[10px] sm:text-xs font-bold border uppercase shrink-0 ${badgeClass}`}>
+          {badge}
         </span>
       </div>
     );

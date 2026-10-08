@@ -1,5 +1,6 @@
 import { ServerDb } from '../db/serverDb';
 import { Profile } from '../mock/types';
+import { mockStore } from '../mock/store';
 
 export function calculateTrustTier(score: number): {
   tier: 'Bronze' | 'Silver' | 'Gold' | 'Platinum';
@@ -54,5 +55,15 @@ export async function updateTrustScore(
     );
   }
 
+  return profile;
+}
+
+export async function flagProfile(userId: string, note: string): Promise<Profile | undefined> {
+  const profile = await ServerDb.getProfileById(userId);
+  if (!profile) return undefined;
+  profile.flagged = true;
+  profile.flagged_note = note;
+  await ServerDb.saveProfile(profile);
+  mockStore.saveProfile(profile);
   return profile;
 }

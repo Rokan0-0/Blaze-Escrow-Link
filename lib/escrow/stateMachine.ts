@@ -1,6 +1,28 @@
 import { EscrowTransaction } from '../mock/types';
 import { mockStore } from '../mock/store';
 
+export const ALLOWED_STATE_TRANSITIONS: Record<string, string[]> = {
+  CREATED: ['PAID', 'CANCELLED', 'EXPIRED'],
+  PAID: ['DISPATCHED', 'CANCELLED', 'REFUNDED'],
+  DISPATCHED: ['CONFIRMED', 'DISPUTED'],
+  CONFIRMED: ['RELEASED'],
+  DISPUTED: ['AWAITING_RETURN', 'REFUNDED', 'RELEASED', 'PARTIAL_REFUND'],
+  AWAITING_RETURN: ['RETURN_DISPATCHED'],
+  RETURN_DISPATCHED: ['RETURN_CONFIRMED', 'DAMAGE_CLAIMED'],
+  RETURN_CONFIRMED: ['REFUNDED'],
+  DAMAGE_CLAIMED: ['REFUNDED', 'RELEASED', 'PARTIAL_REFUND'],
+  RELEASED: [],
+  REFUNDED: [],
+  PARTIAL_REFUND: [],
+  CANCELLED: [],
+  EXPIRED: [],
+};
+
+export function isValidStateTransition(currentState: string, nextState: string): boolean {
+  const allowed = ALLOWED_STATE_TRANSITIONS[currentState];
+  return allowed ? allowed.includes(nextState) : false;
+}
+
 export async function transitionEscrowState(
   txId: string,
   action: 'PAY' | 'DISPATCH' | 'CONFIRM' | 'DISPUTE' | 'RELEASE' | 'REFUND' | 'CANCEL',
@@ -65,6 +87,17 @@ export async function transitionEscrowState(
       const data = await res.json();
       if (data.success) {
         mockStore.saveTransaction(data.transaction);
+        const seller = mockStore.getProfileById(data.transaction.seller_id);
+        if (seller) {
+          seller.simulated_balance += data.transaction.net_amount;
+          seller.completed_trades += 1;
+          seller.total_volume += data.transaction.amount;
+          mockStore.saveProfile(seller);
+        }
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new Event('storage'));
+          window.dispatchEvent(new CustomEvent('blaze_data_updated'));
+        }
         return { success: true, transaction: data.transaction };
       }
       return { success: false, error: data.error };

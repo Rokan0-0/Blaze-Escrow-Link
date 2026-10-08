@@ -4,12 +4,13 @@ import React, { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth/AuthContext';
-import { mockStore } from '@/lib/mock/store';
+import { mockStore, MOCK_SELLER, MOCK_BUYER } from '@/lib/mock/store';
 import { Dispute, EscrowTransaction, Profile, Withdrawal } from '@/lib/mock/types';
 import { formatNaira } from '@/lib/formatters';
 import { Navbar } from '@/components/layout/Navbar';
 import { Footer } from '@/components/layout/Footer';
 import { TrustBadge } from '@/components/trust/TrustBadge';
+import { DisputeThread } from '@/components/dispute/DisputeThread';
 import {
   ShieldAlert,
   CheckCircle2,
@@ -46,8 +47,11 @@ type AdminTab = 'overview' | 'disputes' | 'transactions' | 'users' | 'withdrawal
 
 interface PendingRulingModal {
   dispute: Dispute;
-  outcome: 'RESOLVE_BUYER' | 'RESOLVE_SELLER';
+  ruling: 'BUYER' | 'SELLER';
+  resolution_path: 'NO_RETURN' | 'RETURN_REQUIRED' | 'PARTIAL' | 'DAMAGE_CLAIMED';
   note: string;
+  partial_buyer_pct?: number;
+  damage_ruling?: 'PRE_EXISTING' | 'ACCIDENTAL' | 'INTENTIONAL';
   tx?: EscrowTransaction;
   buyer?: Profile;
   seller?: Profile;
@@ -72,6 +76,11 @@ function AdminContent() {
 
   // Mandatory Resolution Notes State (map of dispute.id -> note)
   const [resolutionNotes, setResolutionNotes] = useState<Record<string, string>>({});
+
+  // Resolution path selector state per dispute.id
+  const [selectedPaths, setSelectedPaths] = useState<Record<string, 'NO_RETURN' | 'RETURN_REQUIRED' | 'PARTIAL' | 'DAMAGE_CLAIMED'>>({});
+  const [partialPcts, setPartialPcts] = useState<Record<string, number>>({});
+  const [damageRulings, setDamageRulings] = useState<Record<string, 'PRE_EXISTING' | 'ACCIDENTAL' | 'INTENTIONAL'>>({});
 
   // Confirmation Modal State
   const [pendingRulingModal, setPendingRulingModal] = useState<PendingRulingModal | null>(null);
@@ -131,27 +140,33 @@ function AdminContent() {
   // Execute binding dispute resolution
   const handleExecuteResolution = async (
     dispute: Dispute,
-    outcome: 'RESOLVE_BUYER' | 'RESOLVE_SELLER',
-    note: string
+    ruling: 'BUYER' | 'SELLER',
+    resolution_path: 'NO_RETURN' | 'RETURN_REQUIRED' | 'PARTIAL' | 'DAMAGE_CLAIMED',
+    note: string,
+    partial_buyer_pct?: number,
+    damage_ruling?: 'PRE_EXISTING' | 'ACCIDENTAL' | 'INTENTIONAL'
   ) => {
     setIsProcessing(true);
     setActionSuccess('');
     setActionError('');
 
     try {
-      const res = await fetch('/api/dispute', {
+      const res = await fetch('/api/dispute/admin-resolve', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          action: 'RESOLVE',
           dispute_id: dispute.id,
-          outcome,
+          admin_id: user?.id || 'usr_admin_ecobank_03',
+          resolution_path,
+          ruling,
           resolution_note: note,
+          partial_buyer_pct,
+          damage_ruling,
         }),
       });
       const data = await res.json();
       if (data.success) {
-        const label = outcome === 'RESOLVE_BUYER' ? 'Buyer refunded' : 'Seller paid out';
+        const label = ruling === 'BUYER' ? 'Buyer refunded' : 'Seller paid out';
         setActionSuccess(`Binding ruling executed for Dispute ${dispute.id}: ${label}. Vault updated.`);
         setPendingRulingModal(null);
         setResolutionNotes((prev) => ({ ...prev, [dispute.id]: '' }));
@@ -581,9 +596,57 @@ function AdminContent() {
                 <div className="py-12 text-center text-slate-400 text-xs">No dispute cases match the selected filter.</div>
               ) : (
                 filteredDisputes.map((d) => {
-                  const tx = mockStore.getTransactionById(d.transaction_id);
-                  const buyer = tx?.buyer_id ? mockStore.getProfileById(tx.buyer_id) : mockStore.getProfileById(d.raised_by);
-                  const seller = tx?.seller_id ? mockStore.getProfileById(tx.seller_id) : undefined;
+                  const tx = transactions.find((item) => item.id === d.transaction_id) || mockStore.getTransactionById(d.transaction_id);
+
+                  const buyerId = tx?.buyer_id || d.raised_by;
+                  const sellerId = tx?.seller_id;
+
+                  let buyer = (buyerId ? profiles.find((p) => p.id === buyerId) : undefined) || mockStore.getProfileById(buyerId || '');
+                  let seller = (sellerId ? profiles.find((p) => p.id === sellerId) : undefined) || mockStore.getProfileById(sellerId || '');
+
+                  if (!buyer) {
+                    if (buyerId === MOCK_BUYER.id || tx?.buyer_name?.includes('Tunde') || d.raised_by === MOCK_BUYER.id) {
+                      buyer = MOCK_BUYER;
+                    } else {
+                      buyer = {
+                        id: buyerId || 'usr_buyer_default',
+                        full_name: tx?.buyer_name || 'Tunde Bakare',
+                        phone: '+2348000000002',
+                        role: 'buyer',
+                        trust_score: 65,
+                        trust_tier: 'Gold',
+                        completed_trades: 5,
+                        disputed_trades: 1,
+                        total_volume: 12700000,
+                        ecobank_linked: false,
+                        credit_limit: 15000000,
+                        simulated_balance: 21100000,
+                        created_at: new Date().toISOString(),
+                      };
+                    }
+                  }
+
+                  if (!seller) {
+                    if (sellerId === MOCK_SELLER.id || tx?.seller_name?.includes('Amina')) {
+                      seller = MOCK_SELLER;
+                    } else {
+                      seller = {
+                        id: sellerId || 'usr_seller_default',
+                        full_name: tx?.seller_name || 'Amina Bello',
+                        phone: '+2348000000001',
+                        role: 'seller',
+                        trust_score: 72,
+                        trust_tier: 'Gold',
+                        completed_trades: 14,
+                        disputed_trades: 0,
+                        total_volume: 45000000,
+                        ecobank_linked: true,
+                        credit_limit: 15000000,
+                        simulated_balance: 18500000,
+                        created_at: new Date().toISOString(),
+                      };
+                    }
+                  }
                   const currentNote = resolutionNotes[d.id] || '';
                   const isNoteValid = currentNote.trim().length >= 10;
 
@@ -795,26 +858,26 @@ function AdminContent() {
                           <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-3">
                             <div className="flex items-center justify-between border-b border-slate-100 pb-2">
                               <span className="font-bold text-purple-700 uppercase tracking-wider text-[10px] flex items-center gap-1">
-                                <ShieldCheck className="w-3.5 h-3.5" /> Seller Counter-Response
+                                <ShieldCheck className="w-3.5 h-3.5" /> Seller Counter-Response ({d.seller_acceptance || 'Pending'})
                               </span>
                               <span className="font-mono text-[10px] text-slate-400">
-                                {d.seller_response ? new Date(d.seller_response.submitted_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'No Response'}
+                                {d.seller_responded_at ? new Date(d.seller_responded_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'No Response'}
                               </span>
                             </div>
 
                             {d.seller_response ? (
                               <div className="space-y-2">
                                 <p className="text-slate-700 leading-relaxed bg-purple-50/50 p-3 rounded-xl border border-purple-100">
-                                  "{d.seller_response.statement}"
+                                  &quot;{d.seller_response}&quot;
                                 </p>
 
-                                {d.seller_response.evidence_urls && d.seller_response.evidence_urls.length > 0 && (
+                                {d.seller_evidence_urls && d.seller_evidence_urls.length > 0 && (
                                   <div className="space-y-1.5 pt-1">
                                     <span className="text-[10px] font-bold text-slate-400 uppercase flex items-center gap-1">
-                                      <ImageIcon className="w-3 h-3" /> Seller Counter-Media ({d.seller_response.evidence_urls.length})
+                                      <ImageIcon className="w-3 h-3" /> Seller Counter-Media ({d.seller_evidence_urls.length})
                                     </span>
                                     <div className="flex flex-wrap gap-2">
-                                      {d.seller_response.evidence_urls.map((url, idx) => (
+                                      {d.seller_evidence_urls.map((url: string, idx: number) => (
                                         <button
                                           key={idx}
                                           onClick={() => setPreviewImage(url)}
@@ -863,80 +926,240 @@ function AdminContent() {
                         </div>
                       )}
 
-                      {/* FEATURE 2: MANDATORY RESOLUTION NOTE FIELD */}
+                      {/* RESOLUTION PATH SELECTOR & RULING ENGINE */}
                       {d.status === 'OPEN' || d.status === 'UNDER_REVIEW' ? (
-                        <div className="space-y-3 pt-4 border-t border-slate-200">
+                        <div className="space-y-4 pt-4 border-t border-slate-200">
+                          {/* Resolution Path Selection Cards */}
+                          <div className="space-y-2">
+                            <span className="text-xs font-extrabold text-slate-900 uppercase tracking-wider block">
+                              1. Select Compliance Resolution Path *
+                            </span>
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                              <button
+                                type="button"
+                                onClick={() => setSelectedPaths({ ...selectedPaths, [d.id]: 'NO_RETURN' })}
+                                className={`p-3.5 rounded-2xl border text-left flex flex-col justify-between space-y-1 transition-all ${
+                                  (selectedPaths[d.id] || 'NO_RETURN') === 'NO_RETURN'
+                                    ? 'bg-purple-50 border-purple-600 ring-2 ring-purple-500/20'
+                                    : 'bg-white border-slate-200 hover:border-slate-300'
+                                }`}
+                              >
+                                <span className="font-extrabold text-xs text-slate-900">No Return Required</span>
+                                <span className="text-[11px] text-slate-500">Refund buyer directly without requiring item return.</span>
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSelectedPaths({ ...selectedPaths, [d.id]: 'RETURN_REQUIRED' });
+                                  if (tx && tx.state !== 'AWAITING_RETURN') {
+                                    fetch('/api/dispute/seller-respond', {
+                                      method: 'POST',
+                                      headers: { 'Content-Type': 'application/json' },
+                                      body: JSON.stringify({
+                                        dispute_id: d.id,
+                                        seller_id: tx.seller_id,
+                                        acceptance: 'RETURN_REQUIRED',
+                                        response_text: 'Admin initiated return requirement flow.',
+                                      }),
+                                    }).then(() => loadData());
+                                  }
+                                }}
+                                className={`p-3.5 rounded-2xl border text-left flex flex-col justify-between space-y-1 transition-all ${
+                                  selectedPaths[d.id] === 'RETURN_REQUIRED' || tx?.state === 'AWAITING_RETURN' || tx?.state === 'RETURN_DISPATCHED'
+                                    ? 'bg-amber-50 border-amber-600 ring-2 ring-amber-500/20'
+                                    : 'bg-white border-slate-200 hover:border-slate-300'
+                                }`}
+                              >
+                                <span className="font-extrabold text-xs text-slate-900">Return Required</span>
+                                <span className="text-[11px] text-slate-500">Trigger return dispatch flow before refunding.</span>
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => setSelectedPaths({ ...selectedPaths, [d.id]: 'PARTIAL' })}
+                                className={`p-3.5 rounded-2xl border text-left flex flex-col justify-between space-y-1 transition-all ${
+                                  selectedPaths[d.id] === 'PARTIAL'
+                                    ? 'bg-blue-50 border-blue-600 ring-2 ring-blue-500/20'
+                                    : 'bg-white border-slate-200 hover:border-slate-300'
+                                }`}
+                              >
+                                <span className="font-extrabold text-xs text-slate-900">Partial Resolution</span>
+                                <span className="text-[11px] text-slate-500">Split amount between buyer & seller (set %).</span>
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Partial Resolution Percentage Input & Live Naira Calculation */}
+                          {selectedPaths[d.id] === 'PARTIAL' && (
+                            <div className="bg-blue-50/80 border border-blue-200 rounded-2xl p-4 space-y-3">
+                              <div className="flex items-center justify-between">
+                                <label className="text-xs font-extrabold text-blue-900">Set Partial Split Percentage</label>
+                                <span className="font-mono text-xs font-extrabold text-blue-800 bg-white px-2.5 py-0.5 rounded border border-blue-200">
+                                  Buyer {partialPcts[d.id] ?? 50}% · Seller {100 - (partialPcts[d.id] ?? 50)}%
+                                </span>
+                              </div>
+                              <input
+                                type="range"
+                                min={1}
+                                max={99}
+                                value={partialPcts[d.id] ?? 50}
+                                onChange={(e) => setPartialPcts({ ...partialPcts, [d.id]: parseInt(e.target.value) })}
+                                className="w-full accent-blue-600 cursor-pointer"
+                              />
+                              <div className="grid grid-cols-2 gap-3 text-xs bg-white p-3 rounded-xl border border-blue-100">
+                                <div>
+                                  <span className="text-[10px] text-slate-400 font-bold block">Buyer Refund:</span>
+                                  <span className="font-mono font-extrabold text-[#006B3F] text-sm">
+                                    {formatNaira(Math.floor(((tx?.amount || 0) * (partialPcts[d.id] ?? 50)) / 100))}
+                                  </span>
+                                </div>
+                                <div>
+                                  <span className="text-[10px] text-slate-400 font-bold block">Seller Release:</span>
+                                  <span className="font-mono font-extrabold text-blue-700 text-sm">
+                                    {formatNaira((tx?.amount || 0) - Math.floor(((tx?.amount || 0) * (partialPcts[d.id] ?? 50)) / 100))}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* DAMAGE CLAIMED State Special Rulings Cards */}
+                          {(tx?.state === 'DAMAGE_CLAIMED' || d.resolution_path === 'DAMAGE_CLAIMED') && (
+                            <div className="bg-rose-50 border border-rose-200 rounded-2xl p-4 space-y-3">
+                              <span className="text-xs font-extrabold text-rose-900 block">
+                                Damage Claim Ruling Decision (Select Assessment):
+                              </span>
+                              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs">
+                                <button
+                                  type="button"
+                                  onClick={() => setDamageRulings({ ...damageRulings, [d.id]: 'PRE_EXISTING' })}
+                                  className={`p-3 rounded-xl border text-left font-bold transition-all ${
+                                    (damageRulings[d.id] || 'PRE_EXISTING') === 'PRE_EXISTING'
+                                      ? 'bg-white border-rose-600 text-rose-800 ring-2 ring-rose-500/20'
+                                      : 'bg-rose-100/50 border-rose-200 text-slate-700'
+                                  }`}
+                                >
+                                  1. Pre-existing Damage
+                                  <span className="block text-[10px] font-normal text-slate-600 mt-0.5">Full refund to buyer</span>
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() => setDamageRulings({ ...damageRulings, [d.id]: 'ACCIDENTAL' })}
+                                  className={`p-3 rounded-xl border text-left font-bold transition-all ${
+                                    damageRulings[d.id] === 'ACCIDENTAL'
+                                      ? 'bg-white border-amber-600 text-amber-900 ring-2 ring-amber-500/20'
+                                      : 'bg-rose-100/50 border-rose-200 text-slate-700'
+                                  }`}
+                                >
+                                  2. Accidental Damage
+                                  <span className="block text-[10px] font-normal text-slate-600 mt-0.5">Split loss percentage</span>
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() => setDamageRulings({ ...damageRulings, [d.id]: 'INTENTIONAL' })}
+                                  className={`p-3 rounded-xl border text-left font-bold transition-all ${
+                                    damageRulings[d.id] === 'INTENTIONAL'
+                                      ? 'bg-white border-rose-700 text-rose-900 ring-2 ring-rose-600/30'
+                                      : 'bg-rose-100/50 border-rose-200 text-slate-700'
+                                  }`}
+                                >
+                                  3. Intentional Damage
+                                  <span className="block text-[10px] font-normal text-slate-600 mt-0.5">Release to seller & flag buyer</span>
+                                </button>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Mandatory Rationale Field with 20 min chars enforcement */}
                           <div className="space-y-1">
                             <label className="text-xs font-extrabold text-slate-900 flex items-center justify-between">
                               <span className="flex items-center gap-1.5">
-                                <FileText className="w-4 h-4 text-purple-600" /> Mandatory Compliance Resolution Rationale *
+                                <FileText className="w-4 h-4 text-purple-600" /> Mandatory Compliance Rationale (Min 20 Characters) *
                               </span>
-                              <span className={`font-mono text-[11px] ${isNoteValid ? 'text-[#006B3F] font-bold' : 'text-slate-400'}`}>
-                                {currentNote.trim().length} / 10 min chars
+                              <span className={`font-mono text-[11px] ${currentNote.trim().length >= 20 ? 'text-[#006B3F] font-bold' : 'text-rose-600'}`}>
+                                {currentNote.trim().length} / 20 min chars
                               </span>
                             </label>
                             <textarea
                               rows={2}
                               value={currentNote}
                               onChange={(e) => setResolutionNotes({ ...resolutionNotes, [d.id]: e.target.value })}
-                              placeholder="Type mandatory compliance rationale (min 10 chars)... e.g., Buyer attached verified spacebar video. Seller counter-evidence does not dispute hardware latency."
+                              placeholder="Type mandatory compliance rationale (min 20 chars)... e.g., Inspected waybill receipt photos and buyer video evidence. Verified pre-existing defect."
                               className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-2xl text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-purple-600 shadow-2xs font-medium"
                             />
-                            {!isNoteValid && (
+                            {currentNote.trim().length < 20 && (
                               <p className="text-[11px] text-rose-600 font-semibold flex items-center gap-1 mt-1">
-                                <AlertCircle className="w-3.5 h-3.5" /> Resolution note is required before ruling buttons activate.
+                                <AlertCircle className="w-3.5 h-3.5" /> Resolution note must be at least 20 characters before ruling buttons activate.
                               </p>
                             )}
                           </div>
 
-                          {/* Action Buttons Triggering FEATURE 4: CONFIRMATION MODAL */}
+                          {/* Binding Ruling Action Buttons showing Exact Naira Amounts */}
                           <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">
-                            <span className="text-xs text-slate-500 font-medium">Execute Binding Ruling:</span>
+                            <span className="text-xs text-slate-500 font-medium">Execute Financial Ruling:</span>
 
                             <div className="flex items-center gap-2.5 w-full sm:w-auto">
                               <button
                                 onClick={() =>
                                   setPendingRulingModal({
                                     dispute: d,
-                                    outcome: 'RESOLVE_BUYER',
+                                    ruling: 'BUYER',
+                                    resolution_path: selectedPaths[d.id] || 'NO_RETURN',
                                     note: currentNote,
+                                    partial_buyer_pct: partialPcts[d.id] ?? 50,
+                                    damage_ruling: damageRulings[d.id] || 'PRE_EXISTING',
                                     tx,
                                     buyer,
                                     seller,
                                   })
                                 }
-                                disabled={!isNoteValid || isProcessing}
+                                disabled={currentNote.trim().length < 20 || isProcessing}
                                 className="flex-1 sm:flex-none px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-xs transition-all shadow-sm disabled:opacity-40 disabled:hover:bg-rose-600 cursor-pointer disabled:cursor-not-allowed flex items-center justify-center gap-1.5"
                               >
-                                Resolve Favor Buyer (Refund)
+                                {selectedPaths[d.id] === 'PARTIAL'
+                                  ? `Split — Buyer ${formatNaira(Math.floor(((tx?.amount || 0) * (partialPcts[d.id] ?? 50)) / 100))}`
+                                  : `Refund Buyer — ${formatNaira(tx?.amount || 0)}`}
                               </button>
 
                               <button
                                 onClick={() =>
                                   setPendingRulingModal({
                                     dispute: d,
-                                    outcome: 'RESOLVE_SELLER',
+                                    ruling: 'SELLER',
+                                    resolution_path: selectedPaths[d.id] || 'NO_RETURN',
                                     note: currentNote,
+                                    damage_ruling: damageRulings[d.id] || 'PRE_EXISTING',
                                     tx,
                                     buyer,
                                     seller,
                                   })
                                 }
-                                disabled={!isNoteValid || isProcessing}
+                                disabled={currentNote.trim().length < 20 || isProcessing}
                                 className="flex-1 sm:flex-none px-4 py-2.5 rounded-xl bg-[#006B3F] hover:bg-[#005432] text-white font-extrabold text-xs transition-all shadow-sm disabled:opacity-40 disabled:hover:bg-[#006B3F] cursor-pointer disabled:cursor-not-allowed flex items-center justify-center gap-1.5"
                               >
-                                Resolve Favor Seller (Release Payout)
+                                Release to Seller — {formatNaira(tx?.net_amount || 0)}
                               </button>
                             </div>
                           </div>
+
+                          {/* DISPUTE THREAD PANEL FOR ADMIN */}
+                          <div className="pt-3">
+                            <DisputeThread disputeId={d.id} currentUserId={user?.id || 'usr_admin_ecobank_03'} currentUserRole="admin" />
+                          </div>
                         </div>
                       ) : (
-                        <div className="pt-4 border-t border-slate-200 text-xs text-[#006B3F] font-extrabold flex items-center gap-2 bg-emerald-50/60 p-4 rounded-2xl border border-emerald-100">
-                          <CheckCircle2 className="w-5 h-5 text-[#006B3F] shrink-0" />
-                          <div>
-                            <span className="block font-bold text-slate-900">Case Closed & Settled:</span>
-                            <span className="text-slate-700 font-normal">{d.resolution_note || 'Resolved by Compliance Auditor'}</span>
+                        <div className="space-y-4 pt-4 border-t border-slate-200">
+                          <div className="text-xs text-[#006B3F] font-extrabold flex items-center gap-2 bg-emerald-50/60 p-4 rounded-2xl border border-emerald-100">
+                            <CheckCircle2 className="w-5 h-5 text-[#006B3F] shrink-0" />
+                            <div>
+                              <span className="block font-bold text-slate-900">Case Closed & Settled:</span>
+                              <span className="text-slate-700 font-normal">{d.resolution_note || 'Resolved by Compliance Auditor'}</span>
+                            </div>
                           </div>
+                          <DisputeThread disputeId={d.id} currentUserId={user?.id || 'usr_admin_ecobank_03'} currentUserRole="admin" />
                         </div>
                       )}
                     </div>
@@ -1292,7 +1515,7 @@ function AdminContent() {
       {/* FEATURE 4: CONFIRMATION MODAL BEFORE EXECUTING BINDING RULING */}
       {pendingRulingModal && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
-          <div className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 max-w-lg w-full space-y-6 shadow-2xl relative animate-in zoom-in-95 duration-200">
+          <div className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 max-w-lg w-full space-y-5 shadow-2xl relative animate-in zoom-in-95 duration-200">
             <button
               onClick={() => setPendingRulingModal(null)}
               className="absolute top-5 right-5 p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-900 transition-all"
@@ -1303,7 +1526,7 @@ function AdminContent() {
             <div className="flex items-center gap-3">
               <div
                 className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${
-                  pendingRulingModal.outcome === 'RESOLVE_BUYER'
+                  pendingRulingModal.ruling === 'BUYER'
                     ? 'bg-rose-100 text-rose-700'
                     : 'bg-emerald-100 text-[#006B3F]'
                 }`}
@@ -1312,57 +1535,100 @@ function AdminContent() {
               </div>
               <div>
                 <span className="text-[10px] font-mono font-bold text-slate-400 uppercase tracking-wider block">
-                  Irreversible Compliance Action
+                  Irreversible Binding Financial Ruling
                 </span>
-                <h3 className="font-extrabold text-slate-900 text-lg">Confirm Binding Dispute Ruling</h3>
+                <h3 className="font-extrabold text-slate-900 text-lg">Confirm Dispute Ruling</h3>
               </div>
             </div>
 
-            {/* Warning Details Statement */}
-            <div className="p-4 rounded-2xl bg-amber-50/80 border border-amber-200 text-slate-800 text-xs space-y-2">
-              <div className="font-bold text-slate-900 flex items-center gap-1.5">
-                <ShieldAlert className="w-4 h-4 text-amber-600 shrink-0" />
-                {pendingRulingModal.outcome === 'RESOLVE_BUYER'
-                  ? `Refunding ${formatNaira(pendingRulingModal.tx?.amount || 0)} to Buyer (${pendingRulingModal.buyer?.full_name || 'Buyer'})`
-                  : `Releasing ${formatNaira(pendingRulingModal.tx?.amount || 0)} to Seller (${pendingRulingModal.seller?.full_name || 'Seller'})`}
+            {/* Ruling Summary Box */}
+            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 text-xs space-y-2.5 text-slate-800">
+              <div className="flex justify-between border-b border-slate-200/80 pb-2">
+                <span className="font-bold text-slate-500">Resolution Path:</span>
+                <span className="font-mono font-extrabold text-purple-700">{pendingRulingModal.resolution_path}</span>
               </div>
-              <p className="text-slate-600 leading-relaxed font-medium">
-                You are about to execute a binding dispute ruling for contract{' '}
-                <strong className="text-slate-900 font-mono">{pendingRulingModal.tx?.code}</strong>. Escrow vault funds will be immediately
-                unfrozen and transferred. <strong className="text-rose-700 uppercase">This action is irreversible. Confirm?</strong>
-              </p>
+              <div className="flex justify-between border-b border-slate-200/80 pb-2">
+                <span className="font-bold text-slate-500">Contract Code:</span>
+                <span className="font-mono font-extrabold text-[#006B3F]">{pendingRulingModal.tx?.code}</span>
+              </div>
+              <div className="flex justify-between border-b border-slate-200/80 pb-2">
+                <span className="font-bold text-slate-500">Ruling Outcome:</span>
+                <span className="font-extrabold text-slate-900">
+                  {pendingRulingModal.ruling === 'BUYER'
+                    ? pendingRulingModal.resolution_path === 'PARTIAL'
+                      ? `Partial Refund (Buyer ${pendingRulingModal.partial_buyer_pct}%)`
+                      : 'Refund to Buyer'
+                    : 'Release to Seller'}
+                </span>
+              </div>
+              <div className="flex justify-between font-mono text-sm pt-1">
+                <span className="font-bold text-slate-700">Financial Execution:</span>
+                <span className="font-extrabold text-slate-900">
+                  {pendingRulingModal.ruling === 'BUYER'
+                    ? `₦${((pendingRulingModal.tx?.amount || 0) / 100).toLocaleString()} → Buyer`
+                    : `₦${((pendingRulingModal.tx?.net_amount || 0) / 100).toLocaleString()} → Seller`}
+                </span>
+              </div>
             </div>
 
             {/* Documented Rationale Preview */}
             <div className="space-y-1 text-xs">
               <span className="font-extrabold text-slate-700 uppercase text-[10px] tracking-wider block">
-                Documented Compliance Rationale:
+                Compliance Rationale:
               </span>
               <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 font-medium italic">
-                "{pendingRulingModal.note}"
+                &quot;{pendingRulingModal.note}&quot;
               </div>
             </div>
 
+            {/* Trust Score Impact Breakdown */}
+            <div className="p-3.5 bg-amber-50/90 border border-amber-200/90 rounded-2xl text-xs space-y-1.5">
+              <span className="font-extrabold text-amber-900 uppercase text-[10px] tracking-wider block flex items-center gap-1">
+                <Zap className="w-3.5 h-3.5 text-amber-600" /> Projected Trust Score Impact:
+              </span>
+              <div className="flex justify-between text-[11px] text-amber-900 font-mono">
+                <span>Seller ({pendingRulingModal.seller?.full_name || 'Seller'}):</span>
+                <span className="font-bold">{pendingRulingModal.ruling === 'BUYER' ? '−8 pts' : '0 pts'}</span>
+              </div>
+              <div className="flex justify-between text-[11px] text-amber-900 font-mono">
+                <span>Buyer ({pendingRulingModal.buyer?.full_name || 'Buyer'}):</span>
+                <span className="font-bold">
+                  {pendingRulingModal.ruling === 'BUYER'
+                    ? '+2 pts'
+                    : pendingRulingModal.damage_ruling === 'INTENTIONAL'
+                    ? '−20 pts (Account Flagged)'
+                    : '−5 pts'}
+                </span>
+              </div>
+            </div>
+
+            <p className="text-[11px] text-rose-700 font-bold uppercase text-center">
+              This action executes live wallet transfers and is irreversible.
+            </p>
+
             {/* Modal Actions */}
-            <div className="flex items-center justify-end gap-3 pt-2">
+            <div className="flex items-center justify-end gap-3 pt-1">
               <button
                 onClick={() => setPendingRulingModal(null)}
                 disabled={isProcessing}
                 className="px-5 py-2.5 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-100 font-bold text-xs transition-all"
               >
-                Cancel / Return
+                Cancel
               </button>
               <button
                 onClick={() =>
                   handleExecuteResolution(
                     pendingRulingModal.dispute,
-                    pendingRulingModal.outcome,
-                    pendingRulingModal.note
+                    pendingRulingModal.ruling,
+                    pendingRulingModal.resolution_path,
+                    pendingRulingModal.note,
+                    pendingRulingModal.partial_buyer_pct,
+                    pendingRulingModal.damage_ruling
                   )
                 }
                 disabled={isProcessing}
                 className={`px-5 py-2.5 rounded-xl text-white font-extrabold text-xs transition-all shadow-md flex items-center gap-2 ${
-                  pendingRulingModal.outcome === 'RESOLVE_BUYER'
+                  pendingRulingModal.ruling === 'BUYER'
                     ? 'bg-rose-600 hover:bg-rose-700'
                     : 'bg-[#006B3F] hover:bg-[#005432]'
                 }`}
@@ -1373,7 +1639,7 @@ function AdminContent() {
                   </>
                 ) : (
                   <>
-                    <Check className="w-4 h-4" /> Confirm & Execute Binding Ruling
+                    <Check className="w-4 h-4" /> Confirm & Execute Ruling
                   </>
                 )}
               </button>

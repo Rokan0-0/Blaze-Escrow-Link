@@ -13,6 +13,7 @@ import { Footer } from '@/components/layout/Footer';
 import { StateProgressBar } from '@/components/escrow/StateProgressBar';
 import { TrustBadge } from '@/components/trust/TrustBadge';
 import { LoadingScreen } from '@/components/ui/LoadingScreen';
+import { DisputeThread } from '@/components/dispute/DisputeThread';
 import confetti from 'canvas-confetti';
 import {
   ShieldCheck,
@@ -66,6 +67,66 @@ export default function EscrowPaymentPage() {
   const [showReleaseModal, setShowReleaseModal] = useState(false);
   const [disputeReason, setDisputeReason] = useState('ITEM_DEFECTIVE');
   const [disputeDesc, setDisputeDesc] = useState('');
+
+  const [returnLogistics, setReturnLogistics] = useState('GIG');
+  const [returnTrackingId, setReturnTrackingId] = useState('');
+  const [returnProofUrl, setReturnProofUrl] = useState('');
+  const [isUploadingProof, setIsUploadingProof] = useState(false);
+  const [isSubmittingReturn, setIsSubmittingReturn] = useState(false);
+
+  const handleReturnProofUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsUploadingProof(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await fetch('/api/upload', { method: 'POST', body: formData });
+      const data = await res.json();
+      if (data.url) setReturnProofUrl(data.url);
+    } catch {
+      // Fallback
+      setReturnProofUrl('https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?w=600&auto=format&fit=crop&q=80');
+    } finally {
+      setIsUploadingProof(false);
+    }
+  };
+
+  const handleReturnDispatchSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!returnTrackingId || !returnProofUrl) {
+      setActionError('Please enter tracking ID and upload waybill photo proof.');
+      return;
+    }
+    setIsSubmittingReturn(true);
+    setActionError('');
+    setActionSuccess('');
+
+    try {
+      const res = await fetch('/api/dispute/return-dispatch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          transaction_id: tx?.id,
+          buyer_id: user?.id || 'usr_buyer_tunde_02',
+          return_logistics: returnLogistics,
+          return_tracking_id: returnTrackingId,
+          return_proof_urls: [returnProofUrl],
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setActionSuccess('Return package dispatched! Seller has been notified to confirm receipt.');
+        loadData();
+      } else {
+        setActionError(data.error || 'Failed to dispatch return.');
+      }
+    } catch (err: any) {
+      setActionError(err.message || 'Network error');
+    } finally {
+      setIsSubmittingReturn(false);
+    }
+  };
 
   const loadData = async () => {
     try {
@@ -699,30 +760,211 @@ export default function EscrowPaymentPage() {
               </div>
             )}
 
-            {/* DISPUTED state */}
-            {tx.state === 'DISPUTED' && (
-              <div className="bg-white border border-rose-200 rounded-3xl p-4 sm:p-6 shadow-2xs space-y-3.5">
-                <h3 className="font-bold text-rose-700 text-xs sm:text-sm uppercase tracking-wider flex items-center gap-2">
-                  <AlertTriangle className="w-4 h-4" /> Dispute Filed — Funds Frozen
-                </h3>
-                {dispute && (
-                  <div className="bg-rose-50 border border-rose-200 rounded-2xl p-3.5 sm:p-4 space-y-2 text-xs">
-                    <div className="flex justify-between text-rose-700">
-                      <span className="font-bold">Dispute Reason:</span>
-                      <span className="font-mono">{dispute.reason}</span>
+            {/* DISPUTED and Dispute Flow states */}
+            {['DISPUTED', 'AWAITING_RETURN', 'RETURN_DISPATCHED', 'RETURN_CONFIRMED', 'DAMAGE_CLAIMED', 'PARTIAL_REFUND', 'REFUNDED'].includes(tx.state) && dispute && (
+              <div className="space-y-4">
+                {/* Dispute Summary Panel */}
+                <div className="bg-white border border-rose-200 rounded-3xl p-4 sm:p-6 shadow-2xs space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-bold text-rose-700 text-xs sm:text-sm uppercase tracking-wider flex items-center gap-2">
+                      <AlertTriangle className="w-4 h-4" /> Dispute Active — Protection Window
+                    </h3>
+                    <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-rose-100 text-rose-800">
+                      ID: {dispute.id}
+                    </span>
+                  </div>
+
+                  <div className="bg-rose-50/70 border border-rose-200 rounded-2xl p-4 space-y-2.5 text-xs">
+                    <div className="flex justify-between text-rose-800">
+                      <span className="font-bold">Reason:</span>
+                      <span className="font-mono bg-white px-2 py-0.5 rounded border border-rose-200">{dispute.reason}</span>
                     </div>
-                    <p className="text-slate-600 leading-relaxed text-[11px] sm:text-xs">{dispute.description}</p>
+                    <p className="text-slate-700 leading-relaxed text-xs">{dispute.description}</p>
+                    
+                    {dispute.evidence_urls && dispute.evidence_urls.length > 0 && (
+                      <div className="pt-2 border-t border-rose-200/80">
+                        <span className="font-bold text-slate-700 text-[11px]">Buyer Claim Evidence:</span>
+                        <div className="flex gap-2 mt-1.5 overflow-x-auto">
+                          {dispute.evidence_urls.map((url, i) => (
+                            <img key={i} src={url} alt="Evidence" className="w-16 h-16 object-cover rounded-lg border border-slate-300" />
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
                     {dispute.ai_score && (
-                      <div className="pt-2 border-t border-rose-200">
-                        <p className="font-bold text-rose-700 text-[11px]">AI Recommendation: <span className="text-slate-900">{dispute.ai_score.recommendation}</span></p>
-                        <p className="text-slate-500 leading-relaxed text-[11px] mt-0.5">{dispute.ai_score.reasoning}</p>
+                      <div className="pt-2 border-t border-rose-200/80">
+                        <p className="font-bold text-rose-800 text-[11px] flex items-center gap-1.5">
+                          <ShieldCheck className="w-3.5 h-3.5 text-[#006B3F]" /> AI Assessment: <span className="text-slate-900 font-mono">{dispute.ai_score.recommendation} ({dispute.ai_score.confidence}% confidence)</span>
+                        </p>
+                        <p className="text-slate-600 text-[11px] mt-0.5 italic">{dispute.ai_score.reasoning}</p>
                       </div>
                     )}
                   </div>
-                )}
-                <p className="text-[11px] text-slate-500">
-                  Ecobank Compliance team will review and resolve within 48–72 hours.
-                </p>
+
+                  {/* SELLER RESPONSE SECTION */}
+                  {dispute.seller_acceptance === 'NO_RETURN' && (
+                    <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 text-xs space-y-1">
+                      <h4 className="font-bold text-[#006B3F] text-xs flex items-center gap-1.5">
+                        <CheckCircle2 className="w-4 h-4 text-[#006B3F]" /> Seller Accepted Claim
+                      </h4>
+                      <p className="text-slate-700 leading-relaxed">
+                        The seller accepted your claim. No return is required. An Ecobank compliance admin will process your refund shortly.
+                      </p>
+                    </div>
+                  )}
+
+                  {dispute.seller_acceptance === 'CONTESTED' && (
+                    <div className="bg-slate-50 border border-slate-300 rounded-2xl p-4 text-xs space-y-1">
+                      <h4 className="font-bold text-slate-800 text-xs flex items-center gap-1.5">
+                        <Info className="w-4 h-4 text-blue-600" /> Seller Contested Claim
+                      </h4>
+                      <p className="text-slate-600 leading-relaxed">
+                        The seller has submitted counter-evidence. Ecobank Compliance team is reviewing both sides before issuing a binding ruling.
+                      </p>
+                    </div>
+                  )}
+
+                  {(dispute.seller_acceptance === 'RETURN_REQUIRED' || tx.state === 'AWAITING_RETURN') && (
+                    <div className="bg-amber-50 border border-amber-300 rounded-2xl p-4 space-y-3.5 text-xs">
+                      <div className="flex items-center gap-2 text-amber-900 font-bold">
+                        <Truck className="w-4 h-4 text-amber-600 shrink-0" />
+                        Action Required: Return Dispatch Required
+                      </div>
+                      <p className="text-amber-800 text-[11px] leading-relaxed">
+                        The seller has requested the item be returned before refund processing. Please dispatch the package back to the seller and upload proof below.
+                      </p>
+
+                      {/* RETURN DISPATCH FORM */}
+                      <form onSubmit={handleReturnDispatchSubmit} className="bg-white border border-amber-200 rounded-xl p-3.5 space-y-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div className="space-y-1">
+                            <label className="block text-[11px] font-bold text-slate-700">Logistics Provider</label>
+                            <select
+                              value={returnLogistics}
+                              onChange={(e) => setReturnLogistics(e.target.value)}
+                              className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-800 focus:outline-none"
+                            >
+                              <option value="GIG">GIG Logistics</option>
+                              <option value="KWIK">Kwik Delivery</option>
+                              <option value="SENDBOX">Sendbox</option>
+                              <option value="CAMPUS_DIRECT">Campus Direct Courier</option>
+                              <option value="OTHER">Other Partner</option>
+                            </select>
+                          </div>
+
+                          <div className="space-y-1">
+                            <label className="block text-[11px] font-bold text-slate-700">Return Tracking ID</label>
+                            <input
+                              type="text"
+                              required
+                              placeholder="e.g. RET-GIG-99201"
+                              value={returnTrackingId}
+                              onChange={(e) => setReturnTrackingId(e.target.value)}
+                              className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-mono text-slate-900 focus:outline-none"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="space-y-1.5">
+                          <label className="block text-[11px] font-bold text-slate-700">Upload Return Proof (Waybill / Receipt Photo)</label>
+                          <div className="flex items-center gap-3">
+                            <input
+                              type="file"
+                              accept="image/*"
+                              onChange={handleReturnProofUpload}
+                              className="text-xs text-slate-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-amber-100 file:text-amber-800 hover:file:bg-amber-200"
+                            />
+                            {isUploadingProof && <span className="text-[11px] text-amber-700 animate-pulse">Uploading proof...</span>}
+                          </div>
+                          {returnProofUrl && (
+                            <div className="mt-1.5 flex items-center gap-2">
+                              <img src={returnProofUrl} alt="Return Proof" className="w-12 h-12 object-cover rounded-lg border border-slate-300" />
+                              <span className="text-[11px] text-emerald-700 font-bold flex items-center gap-1">
+                                <Check className="w-3.5 h-3.5" /> Proof attached
+                              </span>
+                            </div>
+                          )}
+                        </div>
+
+                        <button
+                          type="submit"
+                          disabled={isSubmittingReturn || !returnTrackingId || !returnProofUrl}
+                          className="w-full bg-amber-600 hover:bg-amber-700 text-white font-bold py-2.5 rounded-xl text-xs transition-all shadow-sm disabled:opacity-50 flex items-center justify-center gap-2"
+                        >
+                          {isSubmittingReturn ? 'Submitting Dispatch...' : 'Submit Return Dispatch & Notify Seller'}
+                        </button>
+                      </form>
+                    </div>
+                  )}
+
+                  {/* RETURN DISPATCHED tracking view */}
+                  {tx.state === 'RETURN_DISPATCHED' && (
+                    <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 space-y-2 text-xs">
+                      <h4 className="font-bold text-blue-900 text-xs flex items-center gap-2">
+                        <Truck className="w-4 h-4 text-blue-600" /> Return In Transit
+                      </h4>
+                      <p className="text-slate-700 text-[11px]">
+                        Your return is on its way. Tracking ID: <span className="font-mono font-bold text-blue-950">{tx.return_tracking_id}</span> via <span className="font-bold">{tx.return_logistics}</span>.
+                      </p>
+                      <p className="text-slate-500 text-[11px] italic">
+                        Waiting for seller to confirm item receipt.
+                      </p>
+                    </div>
+                  )}
+
+                  {/* RESOLUTION SECTION */}
+                  {tx.state === 'REFUNDED' && (
+                    <div className="bg-emerald-50 border border-emerald-300 rounded-2xl p-4 space-y-1 text-xs">
+                      <h4 className="font-bold text-[#006B3F] text-xs flex items-center gap-1.5">
+                        <CheckCircle2 className="w-4 h-4 text-[#006B3F]" /> Dispute Resolved — Refunded
+                      </h4>
+                      <p className="text-slate-700 leading-relaxed font-medium">
+                        Your refund of <span className="font-bold font-mono text-[#006B3F]">{formatNaira(tx.partial_buyer_amount || tx.amount)}</span> has been credited to your Blaze wallet balance.
+                      </p>
+                      {dispute.resolution_note && (
+                        <p className="text-slate-500 text-[11px] pt-1 italic border-t border-emerald-200/60 mt-1">
+                          Compliance Rationale: {dispute.resolution_note}
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  {tx.state === 'PARTIAL_REFUND' && (
+                    <div className="bg-amber-50 border border-amber-300 rounded-2xl p-4 space-y-1 text-xs">
+                      <h4 className="font-bold text-amber-900 text-xs flex items-center gap-1.5">
+                        <Info className="w-4 h-4 text-amber-600" /> Dispute Partially Resolved
+                      </h4>
+                      <p className="text-slate-800 leading-relaxed font-medium">
+                        This dispute was partially resolved. <span className="font-bold font-mono text-amber-950">{formatNaira(tx.partial_buyer_amount || (tx.amount / 2))}</span> has been credited to your Blaze wallet balance.
+                      </p>
+                      {dispute.resolution_note && (
+                        <p className="text-slate-600 text-[11px] pt-1 italic border-t border-amber-200/60 mt-1">
+                          Compliance Rationale: {dispute.resolution_note}
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  {tx.state === 'RELEASED' && (
+                    <div className="bg-rose-50 border border-rose-300 rounded-2xl p-4 space-y-1 text-xs">
+                      <h4 className="font-bold text-rose-900 text-xs flex items-center gap-1.5">
+                        <AlertCircle className="w-4 h-4 text-rose-600" /> Dispute Resolved in Seller Favor
+                      </h4>
+                      <p className="text-slate-700 leading-relaxed">
+                        This dispute was resolved in the seller&apos;s favour. Funds have been released to the merchant.
+                      </p>
+                      {dispute.resolution_note && (
+                        <p className="text-slate-500 text-[11px] pt-1 italic border-t border-rose-200/60 mt-1">
+                          Compliance Rationale: {dispute.resolution_note}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* DISPUTE THREAD LOG */}
+                <DisputeThread disputeId={dispute.id} currentUserId={user?.id || 'usr_buyer_tunde_02'} currentUserRole="buyer" />
               </div>
             )}
 

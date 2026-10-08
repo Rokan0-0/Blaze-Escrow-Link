@@ -102,8 +102,19 @@ export default function ActiveContractsPage() {
       const interval = setInterval(() => {
         loadData();
         refreshProfile();
-      }, 3000);
-      return () => clearInterval(interval);
+      }, 2000);
+
+      const handleUpdate = () => {
+        loadData();
+        refreshProfile();
+      };
+      window.addEventListener('storage', handleUpdate);
+      window.addEventListener('blaze_data_updated', handleUpdate);
+      return () => {
+        clearInterval(interval);
+        window.removeEventListener('storage', handleUpdate);
+        window.removeEventListener('blaze_data_updated', handleUpdate);
+      };
     }
   }, [user?.id]);
 
@@ -310,10 +321,11 @@ export default function ActiveContractsPage() {
 
                         <div className="flex items-center gap-2 pt-1">
                           <Link
-                            href={`/pay/${encodeURIComponent(t.code)}`}
+                            href={`/pay/${t.code.replace(/^#/, '')}`}
+                            target="_blank"
                             className="flex-1 py-2 px-3 rounded-xl bg-[#006B3F] hover:bg-[#005432] text-white font-bold text-xs text-center transition-all shadow-2xs flex items-center justify-center gap-1.5"
                           >
-                            <ExternalLink className="w-3.5 h-3.5" /> View Full Contract Page
+                            <ExternalLink className="w-3.5 h-3.5" /> View Contract
                           </Link>
 
                           <button
@@ -443,7 +455,8 @@ export default function ActiveContractsPage() {
                     {/* Equalized Action Footer */}
                     <div className="flex items-center gap-2 pt-3.5 border-t border-slate-100 mt-auto">
                       <Link
-                        href={`/pay/${encodeURIComponent(t.code)}`}
+                        href={`/pay/${t.code.replace(/^#/, '')}`}
+                        target="_blank"
                         className="flex-1 py-2.5 px-4 rounded-xl bg-[#006B3F] hover:bg-[#005432] text-white font-bold text-xs text-center transition-all shadow-2xs flex items-center justify-center gap-2"
                       >
                         <ExternalLink className="w-3.5 h-3.5" /> View Contract

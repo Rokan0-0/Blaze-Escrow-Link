@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { ServerDb } from '@/lib/db/serverDb';
+import { mockStore } from '@/lib/mock/store';
 import { updateTrustScore } from '@/lib/trust/scoreEngine';
 
 export async function POST(request: NextRequest) {
@@ -8,7 +9,7 @@ export async function POST(request: NextRequest) {
     const { action, transaction_id, buyer_id, dispute_reason, dispute_description, dispute_id, outcome, resolution_note } = body;
 
     if (action === 'RAISE') {
-      const tx = await ServerDb.getTransactionById(transaction_id);
+      let tx = (await ServerDb.getTransactionById(transaction_id)) || mockStore.getTransactionById(transaction_id);
       if (!tx) {
         return NextResponse.json({ error: 'Transaction not found' }, { status: 404 });
       }
@@ -24,6 +25,7 @@ export async function POST(request: NextRequest) {
       tx.state = 'DISPUTED';
       tx.updated_at = now;
       await ServerDb.saveTransaction(tx);
+      mockStore.saveTransaction(tx);
 
       const dispute = await ServerDb.saveDispute({
         id: `disp_${Date.now()}`,
@@ -40,11 +42,13 @@ export async function POST(request: NextRequest) {
         },
         created_at: now,
       });
+      mockStore.saveDispute(dispute);
 
-      const seller = await ServerDb.getProfileById(tx.seller_id);
+      const seller = (await ServerDb.getProfileById(tx.seller_id)) || mockStore.getProfileById(tx.seller_id);
       if (seller) {
         seller.disputed_trades += 1;
         await ServerDb.saveProfile(seller);
+        mockStore.saveProfile(seller);
         await updateTrustScore(seller.id, -5, 'Dispute Raised by Buyer', tx.id);
       }
 
@@ -55,6 +59,31 @@ export async function POST(request: NextRequest) {
         'DISPUTE',
         tx.id
       );
+      mockStore.addNotification(
+        tx.seller_id,
+        'Dispute Opened on Order',
+        `Buyer raised a dispute for ${tx.code}. Escrow funds frozen pending Ecobank review.`,
+        'DISPUTE',
+        tx.id
+      );
+
+      // Create initial dispute system message
+      await ServerDb.saveDisputeMessage({
+        id: `msg_${Date.now()}_sys`,
+        dispute_id: dispute.id,
+        sender_id: buyer_id || tx.buyer_id || 'usr_buyer_tunde_02',
+        sender_role: 'buyer',
+        message: 'Dispute filed by buyer. Awaiting seller response.',
+        is_system: true,
+        created_at: now,
+      });
+      mockStore.addDisputeMessage({
+        dispute_id: dispute.id,
+        sender_id: buyer_id || tx.buyer_id || 'usr_buyer_tunde_02',
+        sender_role: 'buyer',
+        message: 'Dispute filed by buyer. Awaiting seller response.',
+        is_system: true,
+      });
 
       return NextResponse.json({ success: true, dispute, transaction: tx });
     }

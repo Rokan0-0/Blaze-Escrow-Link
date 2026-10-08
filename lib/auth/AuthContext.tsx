@@ -57,6 +57,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     initUser();
   }, []);
 
+  useEffect(() => {
+    if (!user?.id) return;
+    refreshProfile();
+    const interval = setInterval(refreshProfile, 2000);
+    const handleUpdate = () => {
+      refreshProfile();
+    };
+    window.addEventListener('storage', handleUpdate);
+    window.addEventListener('blaze_data_updated', handleUpdate);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('storage', handleUpdate);
+      window.removeEventListener('blaze_data_updated', handleUpdate);
+    };
+  }, [user?.id]);
+
   const openAuthModal = () => setIsAuthModalOpen(true);
   const closeAuthModal = () => setIsAuthModalOpen(false);
 

@@ -1,6 +1,6 @@
 import { supabaseAdmin } from '../supabase/admin';
-import { Profile, EscrowTransaction, Dispute, NotificationItem, Withdrawal } from '../mock/types';
-import { MOCK_SELLER, MOCK_BUYER, MOCK_ADMIN, INITIAL_TRANSACTIONS, INITIAL_DISPUTES, INITIAL_NOTIFICATIONS } from '../mock/store';
+import { Profile, EscrowTransaction, Dispute, DisputeMessage, NotificationItem, Withdrawal } from '../mock/types';
+import { MOCK_SELLER, MOCK_BUYER, MOCK_ADMIN, INITIAL_TRANSACTIONS, INITIAL_DISPUTES, INITIAL_DISPUTE_MESSAGES, INITIAL_NOTIFICATIONS } from '../mock/store';
 
 export class ServerDb {
   private static seeded = false;
@@ -18,6 +18,7 @@ export class ServerDb {
         await supabaseAdmin.from('profiles').upsert([MOCK_SELLER, MOCK_BUYER, MOCK_ADMIN]);
         await supabaseAdmin.from('escrow_transactions').upsert(INITIAL_TRANSACTIONS);
         await supabaseAdmin.from('disputes').upsert(INITIAL_DISPUTES);
+        await supabaseAdmin.from('dispute_messages').upsert(INITIAL_DISPUTE_MESSAGES);
         await supabaseAdmin.from('notifications').upsert(INITIAL_NOTIFICATIONS);
         console.log('[ServerDb] Supabase seeding complete.');
       }
@@ -151,6 +152,31 @@ export class ServerDb {
       console.error('[ServerDb] Error saving dispute:', error);
     }
     return (data || dispute) as Dispute;
+  }
+
+  // Dispute Messages
+  static async getDisputeMessages(disputeId: string): Promise<DisputeMessage[]> {
+    await this.ensureSeeded();
+    const { data, error } = await supabaseAdmin
+      .from('dispute_messages')
+      .select('*')
+      .eq('dispute_id', disputeId)
+      .order('created_at', { ascending: true });
+    if (error || !data) return [];
+    return data as DisputeMessage[];
+  }
+
+  static async saveDisputeMessage(msg: DisputeMessage): Promise<DisputeMessage> {
+    await this.ensureSeeded();
+    const { data, error } = await supabaseAdmin
+      .from('dispute_messages')
+      .upsert(msg)
+      .select()
+      .single();
+    if (error) {
+      console.error('[ServerDb] Error saving dispute message:', error);
+    }
+    return (data || msg) as DisputeMessage;
   }
 
   // Notifications

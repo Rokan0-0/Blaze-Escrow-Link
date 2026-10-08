@@ -1,4 +1,4 @@
-import { Profile, EscrowTransaction, Dispute, NotificationItem, TrustScoreEvent, Withdrawal } from './types';
+import { Profile, EscrowTransaction, Dispute, DisputeMessage, NotificationItem, TrustScoreEvent, Withdrawal } from './types';
 import { calculateEscrowFee, generateEscrowCode } from '../formatters';
 
 export const MOCK_SELLER: Profile = {
@@ -144,13 +144,22 @@ export const INITIAL_DISPUTES: Dispute[] = [
       confidence: 88,
       reasoning: 'Buyer attached clear video showing spacebar key latency. Seller chat confirms claim of 100% working condition prior to dispatch.',
     },
-    seller_response: {
-      statement: 'Tested unit prior to packaging via GIG Logistics (GIG-LAK-90812). Key was fully functional. Attached dispatch testing video & receipt.',
-      evidence_urls: [
-        'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=600&auto=format&fit=crop&q=80'
-      ],
-      submitted_at: new Date(Date.now() - 4 * 3600000).toISOString(),
-    },
+    seller_acceptance: undefined,
+    seller_response: undefined,
+    seller_evidence_urls: [],
+    resolution_path: undefined,
+    created_at: new Date(Date.now() - 6 * 3600000).toISOString(),
+  }
+];
+
+export const INITIAL_DISPUTE_MESSAGES: DisputeMessage[] = [
+  {
+    id: 'msg_init_01',
+    dispute_id: 'disp_01',
+    sender_id: MOCK_BUYER.id,
+    sender_role: 'buyer',
+    message: 'Dispute filed by buyer. Awaiting seller response.',
+    is_system: true,
     created_at: new Date(Date.now() - 6 * 3600000).toISOString(),
   }
 ];
@@ -221,6 +230,7 @@ class LocalStore {
   private profiles: Map<string, Profile> = new Map();
   private transactions: Map<string, EscrowTransaction> = new Map();
   private disputes: Map<string, Dispute> = new Map();
+  private disputeMessages: DisputeMessage[] = [];
   private notifications: NotificationItem[] = [];
   private withdrawals: Withdrawal[] = [];
 
@@ -231,6 +241,7 @@ class LocalStore {
 
     INITIAL_TRANSACTIONS.forEach((tx) => this.transactions.set(tx.id, tx));
     INITIAL_DISPUTES.forEach((d) => this.disputes.set(d.id, d));
+    this.disputeMessages = [...INITIAL_DISPUTE_MESSAGES];
     this.notifications = [...INITIAL_NOTIFICATIONS];
     this.withdrawals = [...INITIAL_WITHDRAWALS];
 
@@ -259,6 +270,11 @@ class LocalStore {
         dArray.forEach((d) => this.disputes.set(d.id, d));
       }
 
+      const savedMsgs = localStorage.getItem('blaze_dispute_messages');
+      if (savedMsgs) {
+        this.disputeMessages = JSON.parse(savedMsgs);
+      }
+
       const savedNotifs = localStorage.getItem('blaze_notifs');
       if (savedNotifs) {
         this.notifications = JSON.parse(savedNotifs);
@@ -279,6 +295,7 @@ class LocalStore {
       localStorage.setItem('blaze_transactions', JSON.stringify(Array.from(this.transactions.values())));
       localStorage.setItem('blaze_profiles', JSON.stringify(Array.from(this.profiles.values())));
       localStorage.setItem('blaze_disputes', JSON.stringify(Array.from(this.disputes.values())));
+      localStorage.setItem('blaze_dispute_messages', JSON.stringify(this.disputeMessages));
       localStorage.setItem('blaze_notifs', JSON.stringify(this.notifications));
       localStorage.setItem('blaze_withdrawals', JSON.stringify(this.withdrawals));
     } catch (e) {
@@ -378,6 +395,33 @@ class LocalStore {
     this.disputes.set(dispute.id, dispute);
     this.saveToStorage();
     return dispute;
+  }
+
+  getDisputeMessages(disputeId: string): DisputeMessage[] {
+    return this.disputeMessages
+      .filter((m) => m.dispute_id === disputeId)
+      .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+  }
+
+  addDisputeMessage(params: {
+    dispute_id: string;
+    sender_id: string;
+    sender_role: 'buyer' | 'seller' | 'admin';
+    message: string;
+    is_system?: boolean;
+  }): DisputeMessage {
+    const msg: DisputeMessage = {
+      id: `msg_${Date.now()}_${Math.random().toString(36).substring(2, 5)}`,
+      dispute_id: params.dispute_id,
+      sender_id: params.sender_id,
+      sender_role: params.sender_role,
+      message: params.message,
+      is_system: params.is_system || false,
+      created_at: new Date().toISOString(),
+    };
+    this.disputeMessages.push(msg);
+    this.saveToStorage();
+    return msg;
   }
 
   // Notifications

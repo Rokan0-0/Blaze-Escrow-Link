@@ -26,6 +26,8 @@ CREATE TABLE public.profiles (
   blaze_account TEXT,
   credit_limit BIGINT NOT NULL DEFAULT 5000000, -- kobo (NGN 50,000 default)
   simulated_balance BIGINT NOT NULL DEFAULT 15000000, -- kobo (NGN 150,000 default)
+  flagged BOOLEAN DEFAULT false,
+  flagged_note TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -44,13 +46,23 @@ CREATE TABLE public.escrow_transactions (
   fee BIGINT NOT NULL,                -- kobo
   net_amount BIGINT NOT NULL,         -- kobo
   state TEXT NOT NULL DEFAULT 'CREATED' CHECK (state IN (
-    'CREATED','PAID','DISPATCHED','CONFIRMED','DISPUTED','RELEASED','REFUNDED','CANCELLED','EXPIRED'
+    'CREATED', 'PAID', 'DISPATCHED', 'CONFIRMED',
+    'DISPUTED', 'RELEASED', 'REFUNDED', 'CANCELLED', 'EXPIRED',
+    'AWAITING_RETURN', 'RETURN_DISPATCHED', 'RETURN_CONFIRMED',
+    'PARTIAL_REFUND', 'DAMAGE_CLAIMED'
   )),
   logistics TEXT CHECK (logistics IN ('GIG','KWIK','SENDBOX','CAMPUS_DIRECT','OTHER')),
   tracking_id TEXT,
   ussd_pin TEXT,
   payment_method TEXT CHECK (payment_method IN ('WALLET','TRANSFER','CARD')),
   transfer_account TEXT,
+  partial_buyer_amount BIGINT,
+  partial_seller_amount BIGINT,
+  return_tracking_id TEXT,
+  return_logistics TEXT,
+  return_dispatched_at TIMESTAMPTZ,
+  return_confirmed_at TIMESTAMPTZ,
+  return_proof_urls TEXT[] DEFAULT '{}',
   expires_at TIMESTAMPTZ NOT NULL DEFAULT (NOW() + INTERVAL '48 hours'),
   dispatched_at TIMESTAMPTZ,
   delivered_at TIMESTAMPTZ,
@@ -72,10 +84,30 @@ CREATE TABLE public.disputes (
     'OPEN','UNDER_REVIEW','RESOLVED_BUYER','RESOLVED_SELLER','ESCALATED'
   )),
   ai_score JSONB,
+  seller_acceptance TEXT CHECK (seller_acceptance IN ('NO_RETURN', 'RETURN_REQUIRED', 'CONTESTED', NULL)),
+  seller_response TEXT,
+  seller_evidence_urls TEXT[] DEFAULT '{}',
+  seller_responded_at TIMESTAMPTZ,
+  resolution_path TEXT CHECK (resolution_path IN ('NO_RETURN', 'RETURN_REQUIRED', 'PARTIAL', 'DAMAGE_CLAIMED', NULL)),
+  partial_buyer_pct INTEGER,
+  damage_claim_urls TEXT[] DEFAULT '{}',
+  damage_claim_note TEXT,
+  damage_claimed_at TIMESTAMPTZ,
   resolution_note TEXT,
   resolved_by TEXT REFERENCES public.profiles(id),
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   resolved_at TIMESTAMPTZ
+);
+
+-- 3.1 DISPUTE MESSAGES TABLE
+CREATE TABLE IF NOT EXISTS public.dispute_messages (
+  id TEXT PRIMARY KEY,
+  dispute_id TEXT NOT NULL REFERENCES public.disputes(id) ON DELETE CASCADE,
+  sender_id TEXT NOT NULL REFERENCES public.profiles(id),
+  sender_role TEXT NOT NULL CHECK (sender_role IN ('buyer', 'seller', 'admin')),
+  message TEXT NOT NULL,
+  is_system BOOLEAN NOT NULL DEFAULT false,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 -- 4. NOTIFICATIONS TABLE
@@ -146,6 +178,21 @@ CREATE TRIGGER trg_update_trust_tier
 ALTER TABLE public.profiles DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.escrow_transactions DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.disputes DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.dispute_messages DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.notifications DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.trust_score_events DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.withdrawals DISABLE ROW LEVEL SECURITY;
+
+-- 7. SUPABASE STORAGE BUCKET FOR PRODUCT IMAGES
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('product-images', 'product-images', true)
+ON CONFLICT (id) DO UPDATE SET public = true;
+
+-- Public Storage Access Policies for product-images bucket
+DROP POLICY IF EXISTS "Public Read Product Images" ON storage.objects;
+CREATE POLICY "Public Read Product Images" ON storage.objects
+  FOR SELECT USING (bucket_id = 'product-images');
+
+DROP POLICY IF EXISTS "Public Upload Product Images" ON storage.objects;
+CREATE POLICY "Public Upload Product Images" ON storage.objects
+  FOR INSERT WITH CHECK (bucket_id = 'product-images');

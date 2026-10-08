@@ -8,6 +8,7 @@ import { Footer } from '@/components/layout/Footer';
 import { ShareCardModal } from '@/components/escrow/ShareCardModal';
 import { TrustBadge } from '@/components/trust/TrustBadge';
 import { LoadingScreen } from '@/components/ui/LoadingScreen';
+import { SellerDisputeBanner } from '@/components/dispute/SellerDisputeBanner';
 import { formatNaira, formatDate, calculateEscrowFee, formatNumberInput, parseNumberInput } from '@/lib/formatters';
 import { mockStore } from '@/lib/mock/store';
 import { EscrowTransaction, Withdrawal } from '@/lib/mock/types';
@@ -33,6 +34,7 @@ import {
   Clock,
   ShieldCheck,
   AlertTriangle,
+  Upload,
 } from 'lucide-react';
 
 const SAMPLE_PRESET_IMAGES = [
@@ -111,6 +113,31 @@ export default function DashboardPage() {
     }
   }, [title, description, category, amountNaira, logistics, imageUrl]);
 
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+
+  const handleImageFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsUploadingImage(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const res = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData,
+      });
+      const data = await res.json();
+      if (data.success && data.url) {
+        setImageUrl(data.url);
+      }
+    } catch (err) {
+      console.error('Image upload error', err);
+    }
+    setIsUploadingImage(false);
+  };
+
   const clearDraft = () => {
     setTitle('');
     setDescription('');
@@ -154,8 +181,19 @@ export default function DashboardPage() {
     const interval = setInterval(() => {
       loadData();
       refreshProfile();
-    }, 3000);
-    return () => clearInterval(interval);
+    }, 2000);
+
+    const handleUpdate = () => {
+      loadData();
+      refreshProfile();
+    };
+    window.addEventListener('storage', handleUpdate);
+    window.addEventListener('blaze_data_updated', handleUpdate);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('storage', handleUpdate);
+      window.removeEventListener('blaze_data_updated', handleUpdate);
+    };
   }, [user?.id]);
 
   if (isLoading) {
@@ -205,6 +243,8 @@ export default function DashboardPage() {
 
       if (data.success && data.transaction) {
         setGeneratedLink(data.transaction);
+        setActiveShareTx(data.transaction);
+        setIsGeneratorOpen(false);
         mockStore.saveTransaction(data.transaction);
         clearDraft();
         loadData();
@@ -224,6 +264,8 @@ export default function DashboardPage() {
         image_url: imageUrl || undefined,
       });
       setGeneratedLink(fallbackTx);
+      setActiveShareTx(fallbackTx);
+      setIsGeneratorOpen(false);
       clearDraft();
       loadData();
     }
@@ -461,22 +503,42 @@ export default function DashboardPage() {
                   </div>
                 </div>
 
-                {/* PRODUCT IMAGE INPUT & PRESET CHIPS */}
+                {/* PRODUCT IMAGE INPUT & SUPABASE FILE UPLOADER */}
                 <div className="space-y-2 bg-slate-50 p-3 rounded-2xl border border-slate-200">
                   <div className="flex items-center justify-between">
                     <label className="text-slate-800 font-bold flex items-center gap-1.5">
-                      <ImageIcon className="w-3.5 h-3.5 text-[#006B3F]" /> Product Image (URL or Sample Preset)
+                      <ImageIcon className="w-3.5 h-3.5 text-[#006B3F]" /> Product Image (Supabase Upload or URL)
                     </label>
                     <span className="text-[10px] text-slate-500 font-mono">Optional</span>
                   </div>
 
-                  <input
-                    type="url"
-                    value={imageUrl}
-                    onChange={(e) => setImageUrl(e.target.value)}
-                    placeholder="Paste image URL (https://...)"
-                    className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-slate-900 placeholder-slate-400 font-medium focus:outline-none focus:border-[#006B3F] text-xs"
-                  />
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="url"
+                      value={imageUrl}
+                      onChange={(e) => setImageUrl(e.target.value)}
+                      placeholder="Paste image URL (https://...)"
+                      className="flex-1 bg-white border border-slate-200 rounded-xl px-3 py-2 text-slate-900 placeholder-slate-400 font-medium focus:outline-none focus:border-[#006B3F] text-xs min-w-0"
+                    />
+                    <label className="cursor-pointer px-3 py-2 rounded-xl bg-[#006B3F] hover:bg-[#005432] text-white font-extrabold text-xs shrink-0 flex items-center gap-1.5 shadow-2xs transition-all">
+                      {isUploadingImage ? (
+                        <>
+                          <RefreshCw className="w-3.5 h-3.5 animate-spin" /> Uploading...
+                        </>
+                      ) : (
+                        <>
+                          <Upload className="w-3.5 h-3.5" /> Upload File
+                        </>
+                      )}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleImageFileUpload}
+                        disabled={isUploadingImage}
+                        className="hidden"
+                      />
+                    </label>
+                  </div>
 
                   {/* Sample presets chips */}
                   <div className="space-y-1">
@@ -609,23 +671,16 @@ export default function DashboardPage() {
                         onClick={() => setActiveShareTx(generatedLink)}
                         className="w-full bg-[#25D366] hover:bg-[#20bd5a] text-white font-extrabold py-2.5 px-3 rounded-xl flex items-center justify-center gap-2 transition-all text-xs"
                       >
-                        <Share2 className="w-3.5 h-3.5" /> Open WhatsApp & IG Share Card
+                        <Share2 className="w-3.5 h-3.5" /> Share Escrow Link & Social Card
                       </button>
 
-                      <button
-                        onClick={handleCopySocialText}
-                        className="w-full bg-white hover:bg-slate-100 text-slate-800 border border-slate-200 font-bold py-2.5 px-3 rounded-xl flex items-center justify-center gap-2 transition-all text-xs"
+                      <Link
+                        href={`/pay/${generatedLink.code.replace(/^#/, '')}`}
+                        target="_blank"
+                        className="w-full bg-[#006B3F] hover:bg-[#005432] text-white font-bold py-2.5 px-3 rounded-xl flex items-center justify-center gap-2 transition-all text-xs shadow-2xs"
                       >
-                      {copiedText ? <Check className="w-3.5 h-3.5 text-[#006B3F]" /> : <MessageSquare className="w-3.5 h-3.5 text-[#006B3F]" />}
-                      {copiedText ? 'Copied Caption!' : 'Copy Raw Text Caption'}
-                    </button>
-
-                    <Link
-                      href={`/pay/${encodeURIComponent(generatedLink.code)}`}
-                      className="w-full bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 font-bold py-2.5 px-3 rounded-xl flex items-center justify-center gap-2 transition-all text-xs"
-                    >
-                      <ExternalLink className="w-3.5 h-3.5" /> View Buyer Page
-                    </Link>
+                        <ExternalLink className="w-3.5 h-3.5" /> View Contract
+                      </Link>
                   </div>
                 </div>
               )}
@@ -670,6 +725,12 @@ export default function DashboardPage() {
           {/* TAB 1: ESCROW CONTRACTS */}
           {historyTab === 'ESCROW' && (
             <>
+              {/* DISPUTE ACTION BANNERS FOR SELLER */}
+              {transactions
+                .filter((t) => ['DISPUTED', 'AWAITING_RETURN', 'RETURN_DISPATCHED', 'RETURN_CONFIRMED', 'DAMAGE_CLAIMED'].includes(t.state))
+                .map((disputedTx) => (
+                  <SellerDisputeBanner key={disputedTx.id} tx={disputedTx} onUpdate={loadData} />
+                ))}
               {/* Desktop Table View */}
               <div className="hidden md:block overflow-x-auto">
                 <table className="w-full text-left text-xs min-w-[600px]">
