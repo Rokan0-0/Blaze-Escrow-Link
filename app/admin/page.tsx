@@ -41,6 +41,8 @@ import {
   X,
   AlertCircle,
   Image as ImageIcon,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 
 type AdminTab = 'overview' | 'disputes' | 'transactions' | 'users' | 'withdrawals';
@@ -95,6 +97,40 @@ function AdminContent() {
   const [userRoleFilter, setUserRoleFilter] = useState<string>('ALL');
   const [disputeFilter, setDisputeFilter] = useState<string>('ALL');
   const [withdrawalFilter, setWithdrawalFilter] = useState<string>('ALL');
+
+  // Expand/Collapse state per dispute.id
+  const [expandedDisputes, setExpandedDisputes] = useState<Record<string, boolean>>({});
+
+  const toggleDisputeExpand = (disputeId: string) => {
+    setExpandedDisputes((prev) => {
+      const current = prev[disputeId];
+      if (current === undefined) {
+        const d = disputes.find((item) => item.id === disputeId);
+        const isDefaultExpanded = d?.status === 'OPEN' || d?.status === 'UNDER_REVIEW';
+        return { ...prev, [disputeId]: !isDefaultExpanded };
+      }
+      return { ...prev, [disputeId]: !current };
+    });
+  };
+
+  const isDisputeExpanded = (d: Dispute) => {
+    if (expandedDisputes[d.id] !== undefined) {
+      return expandedDisputes[d.id];
+    }
+    return d.status === 'OPEN' || d.status === 'UNDER_REVIEW';
+  };
+
+  const expandAllDisputes = () => {
+    const next: Record<string, boolean> = {};
+    disputes.forEach((d) => (next[d.id] = true));
+    setExpandedDisputes(next);
+  };
+
+  const collapseAllDisputes = () => {
+    const next: Record<string, boolean> = {};
+    disputes.forEach((d) => (next[d.id] = false));
+    setExpandedDisputes(next);
+  };
 
   useEffect(() => {
     if (searchParams.get('tab')) {
@@ -576,7 +612,22 @@ function AdminContent() {
                 </p>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={expandAllDisputes}
+                  className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all flex items-center gap-1"
+                >
+                  <ChevronDown className="w-3.5 h-3.5 text-purple-600" /> Expand All
+                </button>
+                <button
+                  type="button"
+                  onClick={collapseAllDisputes}
+                  className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all flex items-center gap-1"
+                >
+                  <ChevronUp className="w-3.5 h-3.5 text-purple-600" /> Collapse All
+                </button>
+                <div className="h-4 w-px bg-slate-200 mx-1 hidden sm:block" />
                 <Filter className="w-4 h-4 text-slate-400" />
                 <select
                   value={disputeFilter}
@@ -649,15 +700,19 @@ function AdminContent() {
                   }
                   const currentNote = resolutionNotes[d.id] || '';
                   const isNoteValid = currentNote.trim().length >= 10;
+                  const isExpanded = isDisputeExpanded(d);
 
                   return (
                     <div
                       key={d.id}
-                      className="bg-slate-50 border border-slate-200 rounded-3xl p-6 shadow-sm space-y-6"
+                      className="bg-slate-50 border border-slate-200 rounded-3xl p-5 sm:p-6 shadow-sm space-y-5 transition-all"
                     >
-                      {/* Case Header & State Trajectory Bar */}
+                      {/* Case Header & Expand/Collapse Bar */}
                       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200/80 pb-4">
-                        <div className="space-y-1">
+                        <div
+                          className="space-y-1 flex-1 cursor-pointer select-none"
+                          onClick={() => toggleDisputeExpand(d.id)}
+                        >
                           <div className="flex flex-wrap items-center gap-2">
                             <span className="text-xs font-mono text-purple-700 font-extrabold bg-purple-100 px-2.5 py-0.5 rounded-md">
                               DISPUTE #{d.id}
@@ -666,16 +721,21 @@ function AdminContent() {
                               <Clock className="w-3.5 h-3.5 text-purple-600" /> {getDisputeAge(d.created_at)}
                             </span>
                           </div>
-                          <h3 className="font-extrabold text-slate-900 text-lg">{tx?.title || 'Escrow Item'}</h3>
+                          <h3 className="font-extrabold text-slate-900 text-base sm:text-lg flex flex-wrap items-center gap-2">
+                            <span>{tx?.title || 'Escrow Item'}</span>
+                            <span className="text-xs font-semibold text-slate-500">
+                              (Buyer: <strong className="text-slate-800">{buyer?.full_name}</strong> • Seller: <strong className="text-slate-800">{seller?.full_name}</strong>)
+                            </span>
+                          </h3>
                           <p className="text-xs text-slate-600 font-mono">
                             Contract Code: <strong className="text-[#006B3F]">{tx?.code}</strong> • Vault Escrow Amount:{' '}
                             <strong className="text-slate-900 font-bold">{tx ? formatNaira(tx.amount) : 'N/A'}</strong>
                           </p>
                         </div>
 
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-2.5 shrink-0">
                           <span
-                            className={`px-3.5 py-1.5 rounded-full text-xs font-mono font-bold uppercase ${
+                            className={`px-3 py-1 rounded-full text-xs font-mono font-bold uppercase ${
                               d.status.startsWith('RESOLVED')
                                 ? 'bg-emerald-100 text-[#006B3F] border border-emerald-200'
                                 : 'bg-rose-100 text-rose-700 border border-rose-200 animate-pulse'
@@ -683,10 +743,28 @@ function AdminContent() {
                           >
                             {d.status}
                           </span>
+                          <button
+                            type="button"
+                            onClick={() => toggleDisputeExpand(d.id)}
+                            className="px-3 py-1.5 rounded-xl bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 text-xs font-extrabold flex items-center gap-1.5 transition-all shadow-2xs"
+                          >
+                            {isExpanded ? (
+                              <>
+                                <ChevronUp className="w-4 h-4 text-purple-600" /> Collapse Case
+                              </>
+                            ) : (
+                              <>
+                                <ChevronDown className="w-4 h-4 text-purple-600" /> Expand Case Details
+                              </>
+                            )}
+                          </button>
                         </div>
                       </div>
 
-                      {/* State Trajectory Timeline Badges */}
+                      {/* EXPANDABLE CASE CONTENT */}
+                      {isExpanded && (
+                        <div className="space-y-6 pt-4 border-t border-slate-200/80 animate-in fade-in duration-200">
+                          {/* State Trajectory Timeline Badges */}
                       <div className="bg-white border border-slate-200 rounded-2xl p-4 flex flex-wrap items-center justify-between gap-3 text-xs">
                         <div className="flex items-center gap-2">
                           <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
@@ -1162,8 +1240,10 @@ function AdminContent() {
                           <DisputeThread disputeId={d.id} currentUserId={user?.id || 'usr_admin_ecobank_03'} currentUserRole="admin" />
                         </div>
                       )}
-                    </div>
-                  );
+                      </div>
+                    )}
+                  </div>
+                );
                 })
               )}
             </div>

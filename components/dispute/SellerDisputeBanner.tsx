@@ -1,10 +1,8 @@
-'use client';
-
 import React, { useState, useEffect } from 'react';
 import { EscrowTransaction, Dispute } from '@/lib/mock/types';
 import { mockStore } from '@/lib/mock/store';
 import { DisputeThread } from './DisputeThread';
-import { AlertTriangle, CheckCircle2, Truck, ShieldAlert, Upload, Check, Info, AlertCircle, X } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Truck, ShieldAlert, Upload, Check, Info, AlertCircle, X, ChevronDown, ChevronUp } from 'lucide-react';
 
 interface SellerDisputeBannerProps {
   tx: EscrowTransaction;
@@ -13,6 +11,7 @@ interface SellerDisputeBannerProps {
 
 export function SellerDisputeBanner({ tx, onUpdate }: SellerDisputeBannerProps) {
   const [dispute, setDispute] = useState<Dispute | null>(null);
+  const [isExpanded, setIsExpanded] = useState(true);
   const [selectedOption, setSelectedOption] = useState<'NO_RETURN' | 'RETURN_REQUIRED' | 'CONTESTED'>('RETURN_REQUIRED');
   const [responseText, setResponseText] = useState('');
   const [evidenceUrls, setEvidenceUrls] = useState<string[]>([]);
@@ -162,10 +161,10 @@ export function SellerDisputeBanner({ tx, onUpdate }: SellerDisputeBannerProps) 
   const hasResponded = !!dispute.seller_acceptance;
 
   return (
-    <div className="bg-white border-l-4 border-l-rose-500 border border-slate-200 rounded-3xl p-5 sm:p-6 shadow-md space-y-5 my-4">
+    <div className="bg-white border-l-4 border-l-rose-500 border border-slate-200 rounded-3xl p-5 sm:p-6 shadow-md space-y-4 my-4 transition-all">
       {/* Banner Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3.5">
-        <div>
+        <div className="cursor-pointer select-none" onClick={() => setIsExpanded(!isExpanded)}>
           <span className="text-[11px] font-mono font-bold uppercase tracking-wider text-rose-600 flex items-center gap-1.5">
             <AlertTriangle className="w-4 h-4 text-rose-500" /> Dispute Filed on Contract #{tx.code.slice(-8)}
           </span>
@@ -180,10 +179,20 @@ export function SellerDisputeBanner({ tx, onUpdate }: SellerDisputeBannerProps) 
               <ShieldAlert className="w-3 h-3 text-amber-600" /> {hoursLeft}h left to respond
             </span>
           )}
+          <button
+            type="button"
+            onClick={() => setIsExpanded(!isExpanded)}
+            className="p-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 transition-all ml-1"
+            title={isExpanded ? "Collapse dispute details" : "Expand dispute details"}
+          >
+            {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+          </button>
         </div>
       </div>
 
-      {/* Buyer Dispute Claim Details */}
+      {isExpanded && (
+        <div className="space-y-4 pt-1 animate-in fade-in duration-150">
+          {/* Buyer Dispute Claim Details */}
       <div className="bg-rose-50/60 border border-rose-200 rounded-2xl p-4 space-y-2.5 text-xs">
         <div className="flex justify-between items-center text-slate-700">
           <span className="font-bold text-rose-800">Buyer Claim Reason: <span className="font-mono text-slate-900 bg-white px-2 py-0.5 rounded border border-rose-200">{dispute.reason}</span></span>
@@ -374,6 +383,8 @@ export function SellerDisputeBanner({ tx, onUpdate }: SellerDisputeBannerProps) 
 
       {/* DISPUTE THREAD EMBED */}
       <DisputeThread disputeId={dispute.id} currentUserId={tx.seller_id} currentUserRole="seller" />
+        </div>
+      )}
 
       {/* CONFIRM RETURN RECEIPT MODAL */}
       {showConfirmModal && (
