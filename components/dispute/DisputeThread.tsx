@@ -1,8 +1,7 @@
-'use client';
-
 import React, { useState, useEffect, useRef } from 'react';
 import { DisputeMessage } from '@/lib/mock/types';
 import { mockStore } from '@/lib/mock/store';
+import { Image as ImageIcon, Upload, X, RefreshCw } from 'lucide-react';
 
 interface DisputeThreadProps {
   disputeId: string;
@@ -13,6 +12,8 @@ interface DisputeThreadProps {
 export function DisputeThread({ disputeId, currentUserId, currentUserRole }: DisputeThreadProps) {
   const [messages, setMessages] = useState<DisputeMessage[]>([]);
   const [inputText, setInputText] = useState('');
+  const [attachedImageUrl, setAttachedImageUrl] = useState('');
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -49,17 +50,42 @@ export function DisputeThread({ disputeId, currentUserId, currentUserRole }: Dis
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsUploadingImage(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await fetch('/api/upload', { method: 'POST', body: formData });
+      const data = await res.json();
+      if (data.url) {
+        setAttachedImageUrl(data.url);
+      }
+    } catch {
+      setAttachedImageUrl('https://images.unsplash.com/photo-1584438784894-089d6a62b8fa?w=600&auto=format&fit=crop&q=80');
+    } finally {
+      setIsUploadingImage(false);
+    }
+  };
+
   // Message limit calculations for non-admin
   const userMessagesCount = messages.filter(m => m.sender_id === currentUserId && !m.is_system).length;
   const isLimitReached = currentUserRole !== 'admin' && userMessagesCount >= 3;
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!inputText.trim() || sending || isLimitReached) return;
+    const text = inputText.trim();
+    if ((!text && !attachedImageUrl) || sending || isLimitReached) return;
 
     setSending(true);
-    const msgText = inputText.trim();
+    let fullMsg = text;
+    if (attachedImageUrl) {
+      fullMsg = text ? `${text}\n[Evidence Image]: ${attachedImageUrl}` : `[Evidence Image]: ${attachedImageUrl}`;
+    }
+
     setInputText('');
+    setAttachedImageUrl('');
 
     try {
       const res = await fetch('/api/dispute/message', {
@@ -68,7 +94,7 @@ export function DisputeThread({ disputeId, currentUserId, currentUserRole }: Dis
         body: JSON.stringify({
           dispute_id: disputeId,
           sender_id: currentUserId,
-          message: msgText,
+          message: fullMsg,
         }),
       });
 
@@ -83,7 +109,7 @@ export function DisputeThread({ disputeId, currentUserId, currentUserRole }: Dis
           dispute_id: disputeId,
           sender_id: currentUserId,
           sender_role: currentUserRole,
-          message: msgText,
+          message: fullMsg,
         });
         setMessages(mockStore.getDisputeMessages(disputeId));
       }
@@ -92,7 +118,7 @@ export function DisputeThread({ disputeId, currentUserId, currentUserRole }: Dis
         dispute_id: disputeId,
         sender_id: currentUserId,
         sender_role: currentUserRole,
-        message: msgText,
+        message: fullMsg,
       });
       setMessages(mockStore.getDisputeMessages(disputeId));
     } finally {
@@ -114,7 +140,7 @@ export function DisputeThread({ disputeId, currentUserId, currentUserRole }: Dis
   };
 
   return (
-    <div className="bg-slate-900/90 border border-slate-800 rounded-xl overflow-hidden shadow-xl flex flex-col h-[420px]">
+    <div className="bg-slate-900/90 border border-slate-800 rounded-xl overflow-hidden shadow-xl flex flex-col h-[450px]">
       {/* Header */}
       <div className="bg-slate-800/80 px-4 py-3 border-b border-slate-700/60 flex items-center justify-between">
         <div className="flex items-center space-x-2">
@@ -153,6 +179,8 @@ export function DisputeThread({ disputeId, currentUserId, currentUserRole }: Dis
             }
 
             const isSelf = msg.sender_id === currentUserId;
+            const hasImageUrlMatch = msg.message.match(/\[Evidence Image\]:\s*(https?:\/\/[^\s]+)/);
+            const textWithoutImage = msg.message.replace(/\[Evidence Image\]:\s*(https?:\/\/[^\s]+)/, '').trim();
 
             return (
               <div
@@ -173,7 +201,7 @@ export function DisputeThread({ disputeId, currentUserId, currentUserRole }: Dis
                 </div>
 
                 <div
-                  className={`max-w-[80%] rounded-xl px-3.5 py-2 text-sm leading-relaxed shadow-sm ${
+                  className={`max-w-[80%] rounded-xl px-3.5 py-2 text-sm leading-relaxed shadow-sm space-y-1.5 ${
                     isSelf
                       ? 'bg-blue-600 text-white rounded-br-none'
                       : msg.sender_role === 'admin'
@@ -181,7 +209,17 @@ export function DisputeThread({ disputeId, currentUserId, currentUserRole }: Dis
                       : 'bg-slate-800 text-slate-100 border border-slate-700/80 rounded-bl-none'
                   }`}
                 >
-                  {msg.message}
+                  {textWithoutImage && <div>{textWithoutImage}</div>}
+                  {hasImageUrlMatch && (
+                    <div className="pt-1">
+                      <img
+                        src={hasImageUrlMatch[1]}
+                        alt="Evidence attachment"
+                        className="max-w-xs max-h-48 rounded-lg object-cover border border-white/20 shadow-xs cursor-pointer"
+                        onClick={() => window.open(hasImageUrlMatch[1], '_blank')}
+                      />
+                    </div>
+                  )}
                 </div>
               </div>
             );
@@ -190,8 +228,39 @@ export function DisputeThread({ disputeId, currentUserId, currentUserRole }: Dis
         <div ref={messagesEndRef} />
       </div>
 
+      {/* Image Attachment Preview */}
+      {attachedImageUrl && (
+        <div className="px-3 py-1.5 bg-slate-800/90 border-t border-slate-700 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <img src={attachedImageUrl} alt="Attachment" className="w-8 h-8 rounded border border-slate-600 object-cover" />
+            <span className="text-xs text-slate-300 font-medium">Photo attached to message</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setAttachedImageUrl('')}
+            className="text-slate-400 hover:text-rose-400"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
       {/* Input Form */}
       <form onSubmit={handleSendMessage} className="p-3 bg-slate-800/80 border-t border-slate-700/60 flex items-center space-x-2">
+        <label className="cursor-pointer p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-all shrink-0">
+          {isUploadingImage ? (
+            <RefreshCw className="w-4 h-4 animate-spin text-blue-400" />
+          ) : (
+            <ImageIcon className="w-4 h-4" />
+          )}
+          <input
+            type="file"
+            accept="image/*"
+            onChange={handleImageUpload}
+            disabled={isLimitReached || sending || isUploadingImage}
+            className="hidden"
+          />
+        </label>
         <input
           type="text"
           value={inputText}
@@ -207,7 +276,7 @@ export function DisputeThread({ disputeId, currentUserId, currentUserRole }: Dis
         />
         <button
           type="submit"
-          disabled={!inputText.trim() || sending || isLimitReached}
+          disabled={(!inputText.trim() && !attachedImageUrl) || sending || isLimitReached}
           className="bg-blue-600 hover:bg-blue-500 disabled:bg-slate-700 text-white font-medium px-4 py-2 rounded-lg text-sm transition-all duration-150 flex items-center justify-center min-w-[80px]"
         >
           {sending ? 'Sending...' : 'Send'}

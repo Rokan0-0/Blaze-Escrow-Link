@@ -34,6 +34,7 @@ export async function transitionEscrowState(
     payment_method?: 'WALLET' | 'TRANSFER' | 'CARD';
     dispute_reason?: string;
     dispute_description?: string;
+    evidence_urls?: string[];
     resolution_note?: string;
     resolved_by?: string;
   }
@@ -113,6 +114,7 @@ export async function transitionEscrowState(
           buyer_id: payload?.buyer_id,
           dispute_reason: payload?.dispute_reason,
           dispute_description: payload?.dispute_description,
+          evidence_urls: payload?.evidence_urls,
         }),
       });
       const data = await res.json();

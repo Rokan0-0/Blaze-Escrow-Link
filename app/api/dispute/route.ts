@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
         raised_by: buyer_id || tx.buyer_id || 'usr_buyer_tunde_02',
         reason: dispute_reason || 'ITEM_DEFECTIVE',
         description: dispute_description || 'Buyer flagged defect with received item.',
-        evidence_urls: [],
+        evidence_urls: body.evidence_urls || body.dispute_evidence_urls || [],
         status: 'OPEN',
         ai_score: {
           recommendation: 'MANUAL_REVIEW',

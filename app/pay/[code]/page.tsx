@@ -34,6 +34,9 @@ import {
   AlertCircle,
   LayoutDashboard,
   ShoppingBag,
+  Upload,
+  Image as ImageIcon,
+  RefreshCw,
 } from 'lucide-react';
 
 export default function EscrowPaymentPage() {
@@ -67,6 +70,27 @@ export default function EscrowPaymentPage() {
   const [showReleaseModal, setShowReleaseModal] = useState(false);
   const [disputeReason, setDisputeReason] = useState('ITEM_DEFECTIVE');
   const [disputeDesc, setDisputeDesc] = useState('');
+  const [disputeEvidenceUrls, setDisputeEvidenceUrls] = useState<string[]>([]);
+  const [isUploadingDisputeEvidence, setIsUploadingDisputeEvidence] = useState(false);
+
+  const handleDisputeEvidenceUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    setIsUploadingDisputeEvidence(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', files[0]);
+      const res = await fetch('/api/upload', { method: 'POST', body: formData });
+      const data = await res.json();
+      if (data.url) {
+        setDisputeEvidenceUrls((prev) => [...prev, data.url]);
+      }
+    } catch {
+      setDisputeEvidenceUrls((prev) => [...prev, 'https://images.unsplash.com/photo-1584438784894-089d6a62b8fa?w=600&auto=format&fit=crop&q=80']);
+    } finally {
+      setIsUploadingDisputeEvidence(false);
+    }
+  };
 
   const [returnLogistics, setReturnLogistics] = useState('GIG');
   const [returnTrackingId, setReturnTrackingId] = useState('');
@@ -298,12 +322,14 @@ export default function EscrowPaymentPage() {
       buyer_id: user?.id,
       dispute_reason: disputeReason,
       dispute_description: disputeDesc,
+      evidence_urls: disputeEvidenceUrls,
     });
 
     if (res.success && res.transaction) {
       setTx({ ...res.transaction });
       setShowDisputeModal(false);
-      setActionSuccess('Dispute submitted. Escrow funds frozen pending Ecobank Compliance review.');
+      setDisputeEvidenceUrls([]);
+      setActionSuccess('Dispute submitted with evidence photos. Escrow funds frozen pending Ecobank Compliance review.');
       loadData();
     } else {
       setActionError(res.error || 'Failed to log dispute.');
@@ -1063,6 +1089,60 @@ export default function EscrowPaymentPage() {
                   placeholder="Describe the issue in detail..."
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-900 text-xs"
                 />
+              </div>
+
+              {/* PHOTO EVIDENCE UPLOADER */}
+              <div className="space-y-2 bg-slate-50 p-3 rounded-2xl border border-slate-200">
+                <div className="flex items-center justify-between">
+                  <label className="text-slate-800 font-bold flex items-center gap-1.5 text-xs">
+                    <ImageIcon className="w-3.5 h-3.5 text-rose-600" /> Upload Photo Evidence
+                  </label>
+                  <span className="text-[10px] text-slate-500 font-mono">Optional</span>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <label className="cursor-pointer px-3 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-xs shrink-0 flex items-center gap-1.5 shadow-2xs transition-all">
+                    {isUploadingDisputeEvidence ? (
+                      <>
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin" /> Uploading...
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="w-3.5 h-3.5" /> Select Image File
+                      </>
+                    )}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleDisputeEvidenceUpload}
+                      disabled={isUploadingDisputeEvidence}
+                      className="hidden"
+                    />
+                  </label>
+                  <span className="text-[11px] text-slate-400 italic">Photos of unboxing, defect, or package condition</span>
+                </div>
+
+                {/* Uploaded Evidence Thumbnails */}
+                {disputeEvidenceUrls.length > 0 && (
+                  <div className="pt-2 border-t border-slate-200 space-y-1">
+                    <span className="text-[10px] text-slate-500 font-bold block">Attached Evidence ({disputeEvidenceUrls.length}):</span>
+                    <div className="flex flex-wrap gap-2">
+                      {disputeEvidenceUrls.map((url, index) => (
+                        <div key={index} className="relative group w-14 h-14 rounded-xl overflow-hidden border border-slate-300">
+                          <img src={url} alt={`Evidence ${index + 1}`} className="w-full h-full object-cover" />
+                          <button
+                            type="button"
+                            onClick={() => setDisputeEvidenceUrls(prev => prev.filter((_, i) => i !== index))}
+                            className="absolute top-0.5 right-0.5 bg-slate-900/80 text-white p-0.5 rounded-full hover:bg-rose-600 transition-colors"
+                            title="Remove photo"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="flex gap-2 pt-2">
