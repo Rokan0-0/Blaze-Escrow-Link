@@ -147,17 +147,32 @@ export class ServerDb {
       .from('disputes')
       .select('*')
       .eq('transaction_id', txId)
-      .maybeSingle();
-    if (error || !data) return undefined;
-    return data as Dispute;
+      .order('created_at', { ascending: false });
+    if (error || !data || data.length === 0) return undefined;
+    const sorted = [...(data as Dispute[])].sort((a, b) => {
+      const aScore = (a.seller_acceptance ? 2 : 0) + (a.seller_responded_at ? 1 : 0);
+      const bScore = (b.seller_acceptance ? 2 : 0) + (b.seller_responded_at ? 1 : 0);
+      if (aScore !== bScore) return bScore - aScore;
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    });
+    return sorted[0];
   }
 
   static async getDisputeByIdOrTxId(idOrTxId: string): Promise<Dispute | undefined> {
-    let d = await this.getDisputeById(idOrTxId);
-    if (!d) d = await this.getDisputeByTxId(idOrTxId);
+    let d = await this.getDisputeByTxId(idOrTxId);
+    if (!d) d = await this.getDisputeById(idOrTxId);
     if (!d) {
       const all = await this.getDisputes();
-      d = all.find((item) => item.id === idOrTxId || item.transaction_id === idOrTxId);
+      const matches = all.filter((item) => item.id === idOrTxId || item.transaction_id === idOrTxId);
+      if (matches.length > 0) {
+        matches.sort((a, b) => {
+          const aScore = (a.seller_acceptance ? 2 : 0) + (a.seller_responded_at ? 1 : 0);
+          const bScore = (b.seller_acceptance ? 2 : 0) + (b.seller_responded_at ? 1 : 0);
+          if (aScore !== bScore) return bScore - aScore;
+          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+        });
+        d = matches[0];
+      }
     }
     return d;
   }

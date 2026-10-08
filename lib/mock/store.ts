@@ -382,17 +382,40 @@ class LocalStore {
 
   // Dispute operations
   getAllDisputes(): Dispute[] {
-    return Array.from(this.disputes.values()).sort(
-      (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-    );
+    return Array.from(this.disputes.values()).sort((a, b) => {
+      const aScore = (a.seller_acceptance ? 2 : 0) + (a.seller_responded_at ? 1 : 0);
+      const bScore = (b.seller_acceptance ? 2 : 0) + (b.seller_responded_at ? 1 : 0);
+      if (aScore !== bScore) return bScore - aScore;
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    });
   }
 
   getDisputeByTxId(txId: string): Dispute | undefined {
-    return Array.from(this.disputes.values()).find((d) => d.transaction_id === txId || d.id === txId);
+    const matches = Array.from(this.disputes.values()).filter(
+      (d) => d.transaction_id === txId || d.id === txId
+    );
+    if (matches.length === 0) return undefined;
+    matches.sort((a, b) => {
+      const aScore = (a.seller_acceptance ? 2 : 0) + (a.seller_responded_at ? 1 : 0);
+      const bScore = (b.seller_acceptance ? 2 : 0) + (b.seller_responded_at ? 1 : 0);
+      if (aScore !== bScore) return bScore - aScore;
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    });
+    return matches[0];
   }
 
   getDisputeByIdOrTxId(idOrTxId: string): Dispute | undefined {
-    return Array.from(this.disputes.values()).find((d) => d.id === idOrTxId || d.transaction_id === idOrTxId);
+    const matches = Array.from(this.disputes.values()).filter(
+      (d) => d.id === idOrTxId || d.transaction_id === idOrTxId
+    );
+    if (matches.length === 0) return undefined;
+    matches.sort((a, b) => {
+      const aScore = (a.seller_acceptance ? 2 : 0) + (a.seller_responded_at ? 1 : 0);
+      const bScore = (b.seller_acceptance ? 2 : 0) + (b.seller_responded_at ? 1 : 0);
+      if (aScore !== bScore) return bScore - aScore;
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    });
+    return matches[0];
   }
 
   saveDispute(dispute: Dispute): Dispute {

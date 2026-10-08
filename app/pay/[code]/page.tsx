@@ -159,7 +159,14 @@ export default function EscrowPaymentPage() {
       if (data.transaction) {
         setTx({ ...data.transaction });
         if (data.seller) setSellerProfile(data.seller);
-        if (data.dispute) setDispute(data.dispute);
+        if (data.dispute) {
+          setDispute((prev) => {
+            if (prev?.seller_acceptance && !data.dispute.seller_acceptance) {
+              return { ...data.dispute, ...prev };
+            }
+            return data.dispute;
+          });
+        }
         return;
       }
     } catch (e) {}
@@ -171,7 +178,14 @@ export default function EscrowPaymentPage() {
       const seller = mockStore.getProfileById(item.seller_id);
       if (seller) setSellerProfile(seller);
       const d = mockStore.getDisputeByTxId(item.id);
-      if (d) setDispute(d);
+      if (d) {
+        setDispute((prev) => {
+          if (prev?.seller_acceptance && !d.seller_acceptance) {
+            return { ...d, ...prev };
+          }
+          return d;
+        });
+      }
     } else {
       setNotFound(true);
     }

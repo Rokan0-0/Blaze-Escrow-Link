@@ -40,7 +40,15 @@ export function SellerDisputeBanner({ tx, onUpdate }: SellerDisputeBannerProps) 
       const res = await fetch(`/api/dispute/${tx.id}`);
       if (res.ok) {
         const data = await res.json();
-        if (data.dispute) setDispute(data.dispute);
+        if (data.dispute) {
+          setDispute((prev) => {
+            if (prev?.seller_acceptance && !data.dispute.seller_acceptance) {
+              return { ...data.dispute, ...prev };
+            }
+            return data.dispute;
+          });
+          mockStore.saveDispute(data.dispute);
+        }
       } else {
         const d = mockStore.getDisputeByTxId(tx.id);
         if (d) setDispute(d);
@@ -119,12 +127,20 @@ export function SellerDisputeBanner({ tx, onUpdate }: SellerDisputeBannerProps) 
 
       if (res.ok) {
         const data = await res.json();
-        if (data.dispute) setDispute(data.dispute);
+        if (data.dispute) {
+          setDispute(data.dispute);
+          mockStore.saveDispute(data.dispute);
+        }
+        if (data.transaction) {
+          mockStore.saveTransaction(data.transaction);
+        }
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('blaze_data_updated'));
+        }
         setToast({
           msg: selectedOption === 'CONTESTED' ? 'Counter-appeal statement & evidence submitted!' : 'Dispute response submitted successfully.',
           type: 'success',
         });
-        fetchDispute();
         if (onUpdate) onUpdate();
       } else {
         const err = await res.json();
@@ -158,9 +174,19 @@ export function SellerDisputeBanner({ tx, onUpdate }: SellerDisputeBannerProps) 
       });
 
       if (res.ok) {
+        const data = await res.json();
+        if (data.dispute) {
+          setDispute(data.dispute);
+          mockStore.saveDispute(data.dispute);
+        }
+        if (data.transaction) {
+          mockStore.saveTransaction(data.transaction);
+        }
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('blaze_data_updated'));
+        }
         setShowConfirmModal(false);
         setToast({ msg: 'Return package receipt confirmed!', type: 'success' });
-        fetchDispute();
         if (onUpdate) onUpdate();
       } else {
         const err = await res.json();
