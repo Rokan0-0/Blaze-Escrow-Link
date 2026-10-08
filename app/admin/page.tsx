@@ -980,20 +980,38 @@ function AdminContent() {
 
                           {/* Seller Counter-Evidence Panel */}
                           <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-3">
-                            <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-                              <span className="font-bold text-purple-700 uppercase tracking-wider text-[10px] flex items-center gap-1">
-                                <ShieldCheck className="w-3.5 h-3.5" /> Seller Counter-Response ({d.seller_acceptance || 'Pending'})
-                              </span>
+                            <div className="flex items-center justify-between border-b border-slate-100 pb-2 flex-wrap gap-2">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="font-bold text-purple-700 uppercase tracking-wider text-[10px] flex items-center gap-1">
+                                  <ShieldCheck className="w-3.5 h-3.5" /> Seller Counter-Response
+                                </span>
+                                {d.seller_acceptance && (
+                                  <span className="px-2 py-0.5 rounded font-mono font-extrabold text-[10px] bg-purple-100 text-purple-800 border border-purple-200">
+                                    {d.seller_acceptance === 'NO_RETURN'
+                                      ? '1. Accept — No Return'
+                                      : d.seller_acceptance === 'RETURN_REQUIRED'
+                                      ? '2. Accept — Return First'
+                                      : d.seller_acceptance === 'CONTESTED'
+                                      ? '3. Contest & File Appeal'
+                                      : d.seller_acceptance}
+                                  </span>
+                                )}
+                              </div>
                               <span className="font-mono text-[10px] text-slate-400">
                                 {d.seller_responded_at ? new Date(d.seller_responded_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'No Response'}
                               </span>
                             </div>
 
-                            {d.seller_response ? (
+                            {d.seller_response || d.seller_acceptance ? (
                               <div className="space-y-2">
-                                <p className="text-slate-700 leading-relaxed bg-purple-50/50 p-3 rounded-xl border border-purple-100">
-                                  &quot;{d.seller_response}&quot;
-                                </p>
+                                {d.seller_response && (
+                                  <div className="space-y-1">
+                                    <span className="text-[10px] font-bold text-slate-400 uppercase block">Seller Counter-Statement Note:</span>
+                                    <p className="text-slate-800 leading-relaxed bg-purple-50/50 p-3 rounded-xl border border-purple-100 font-medium text-xs">
+                                      &quot;{d.seller_response}&quot;
+                                    </p>
+                                  </div>
+                                )}
 
                                 {d.seller_evidence_urls && d.seller_evidence_urls.length > 0 && (
                                   <div className="space-y-1.5 pt-1">

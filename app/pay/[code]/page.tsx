@@ -944,26 +944,43 @@ export default function EscrowPaymentPage() {
                     )}
                   </div>
 
-                  {/* SELLER RESPONSE SECTION */}
-                  {dispute.seller_acceptance === 'NO_RETURN' && (
-                    <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 text-xs space-y-1">
-                      <h4 className="font-bold text-[#006B3F] text-xs flex items-center gap-1.5">
-                        <CheckCircle2 className="w-4 h-4 text-[#006B3F]" /> Seller Accepted Claim
-                      </h4>
-                      <p className="text-slate-700 leading-relaxed">
-                        The seller accepted your claim. No return is required. An Ecobank compliance admin will process your refund shortly.
-                      </p>
-                    </div>
-                  )}
+                  {/* SELLER RESPONSE & COUNTER-APPEAL CARD (Visible to Buyer and Seller) */}
+                  {dispute.seller_acceptance && (
+                    <div className="bg-purple-50/70 border border-purple-200 rounded-2xl p-4 space-y-3 text-xs">
+                      <div className="flex items-center justify-between border-b border-purple-200/60 pb-2">
+                        <span className="font-extrabold text-purple-900 text-xs flex items-center gap-1.5 uppercase tracking-wider">
+                          <ShieldAlert className="w-4 h-4 text-purple-600" /> Seller Counter-Appeal & Response Note
+                        </span>
+                        <span className="px-2.5 py-0.5 rounded font-mono font-bold text-[10px] bg-purple-100 text-purple-900 border border-purple-300">
+                          {dispute.seller_acceptance === 'NO_RETURN'
+                            ? '1. Accept — No Return'
+                            : dispute.seller_acceptance === 'RETURN_REQUIRED'
+                            ? '2. Accept — Return First'
+                            : dispute.seller_acceptance === 'CONTESTED'
+                            ? '3. Contest & File Appeal'
+                            : dispute.seller_acceptance}
+                        </span>
+                      </div>
 
-                  {dispute.seller_acceptance === 'CONTESTED' && (
-                    <div className="bg-slate-50 border border-slate-300 rounded-2xl p-4 text-xs space-y-1">
-                      <h4 className="font-bold text-slate-800 text-xs flex items-center gap-1.5">
-                        <Info className="w-4 h-4 text-blue-600" /> Seller Contested Claim
-                      </h4>
-                      <p className="text-slate-600 leading-relaxed">
-                        The seller has submitted counter-evidence. Ecobank Compliance team is reviewing both sides before issuing a binding ruling.
-                      </p>
+                      {dispute.seller_response && (
+                        <div className="space-y-1">
+                          <span className="text-[10px] font-bold text-slate-500 uppercase block">Seller Statement / Note:</span>
+                          <p className="text-slate-800 leading-relaxed font-medium bg-white p-3 rounded-xl border border-purple-100 shadow-2xs">
+                            &quot;{dispute.seller_response}&quot;
+                          </p>
+                        </div>
+                      )}
+
+                      {dispute.seller_evidence_urls && dispute.seller_evidence_urls.length > 0 && (
+                        <div className="pt-2 border-t border-purple-200/60">
+                          <span className="font-bold text-slate-700 text-[11px] block mb-1.5">Seller Counter-Evidence Uploaded ({dispute.seller_evidence_urls.length}):</span>
+                          <div className="flex gap-2 overflow-x-auto">
+                            {dispute.seller_evidence_urls.map((url, i) => (
+                              <img key={i} src={url} alt="Seller Evidence" className="w-16 h-16 object-cover rounded-lg border border-slate-300 shadow-2xs" />
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
 
