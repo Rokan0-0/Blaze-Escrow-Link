@@ -227,6 +227,11 @@ function AdminContent() {
       });
       const data = await res.json();
       if (data.success) {
+        if (data.dispute) mockStore.saveDispute(data.dispute);
+        if (data.transaction) mockStore.saveTransaction(data.transaction);
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('blaze_data_updated'));
+        }
         const label = ruling === 'BUYER' ? 'Buyer refunded' : 'Seller paid out';
         setActionSuccess(`Binding ruling executed for Dispute ${dispute.id}: ${label}. Vault updated.`);
         setPendingRulingModal(null);

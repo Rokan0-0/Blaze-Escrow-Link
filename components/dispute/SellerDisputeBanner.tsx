@@ -199,7 +199,11 @@ export function SellerDisputeBanner({ tx, onUpdate }: SellerDisputeBannerProps) 
     }
   };
 
-  const hasResponded = !!dispute.seller_acceptance;
+  const isResolved =
+    dispute.status === 'RESOLVED_BUYER' ||
+    dispute.status === 'RESOLVED_SELLER' ||
+    ['REFUNDED', 'RELEASED', 'PARTIAL_REFUND'].includes(tx.state);
+  const hasResponded = !!dispute.seller_acceptance || isResolved;
 
   return (
     <>

@@ -897,7 +897,12 @@ export default function EscrowPaymentPage() {
             {/* DISPUTED and Dispute Flow states */}
             {['DISPUTED', 'AWAITING_RETURN', 'RETURN_DISPATCHED', 'RETURN_CONFIRMED', 'DAMAGE_CLAIMED', 'PARTIAL_REFUND', 'REFUNDED'].includes(tx.state) && (
               <div className="space-y-4">
-                {isSeller && <SellerDisputeBanner tx={tx} onUpdate={loadData} />}
+                {isSeller &&
+                  !['REFUNDED', 'RELEASED'].includes(tx.state) &&
+                  dispute?.status !== 'RESOLVED_BUYER' &&
+                  dispute?.status !== 'RESOLVED_SELLER' && (
+                    <SellerDisputeBanner tx={tx} onUpdate={loadData} />
+                  )}
 
                 {/* Dispute Summary Panel */}
                 {dispute && (

@@ -28,10 +28,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Forbidden: caller is not an Ecobank compliance admin' }, { status: 403 });
     }
 
-    let dispute = (await ServerDb.getDisputeByTxId(dispute_id)) || mockStore.getDisputeByTxId(dispute_id);
+    let dispute = (await ServerDb.getDisputeByIdOrTxId(dispute_id)) || mockStore.getDisputeByIdOrTxId(dispute_id);
+    if (!dispute) {
+      dispute = (await ServerDb.getDisputeByTxId(dispute_id)) || mockStore.getDisputeByTxId(dispute_id);
+    }
     if (!dispute) {
       const all = await ServerDb.getDisputes();
-      dispute = all.find((d) => d.id === dispute_id);
+      dispute = all.find((d) => d.id === dispute_id || d.transaction_id === dispute_id);
     }
 
     if (!dispute) {
