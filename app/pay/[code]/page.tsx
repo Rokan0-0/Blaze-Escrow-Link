@@ -13,7 +13,6 @@ import { Footer } from '@/components/layout/Footer';
 import { StateProgressBar } from '@/components/escrow/StateProgressBar';
 import { TrustBadge } from '@/components/trust/TrustBadge';
 import { LoadingScreen } from '@/components/ui/LoadingScreen';
-import { DisputeThread } from '@/components/dispute/DisputeThread';
 import confetti from 'canvas-confetti';
 import {
   ShieldCheck,
@@ -988,9 +987,6 @@ export default function EscrowPaymentPage() {
                     </div>
                   )}
                 </div>
-
-                {/* DISPUTE THREAD LOG */}
-                <DisputeThread disputeId={dispute.id} currentUserId={user?.id || 'usr_buyer_tunde_02'} currentUserRole="buyer" />
               </div>
             )}
 

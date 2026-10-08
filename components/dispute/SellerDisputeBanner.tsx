@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { EscrowTransaction, Dispute } from '@/lib/mock/types';
 import { mockStore } from '@/lib/mock/store';
-import { DisputeThread } from './DisputeThread';
 import { AlertTriangle, CheckCircle2, Truck, ShieldAlert, Upload, Check, Info, AlertCircle, X, ChevronDown, ChevronUp } from 'lucide-react';
 
 interface SellerDisputeBannerProps {
@@ -381,8 +380,6 @@ export function SellerDisputeBanner({ tx, onUpdate }: SellerDisputeBannerProps) 
         </div>
       )}
 
-      {/* DISPUTE THREAD EMBED */}
-      <DisputeThread disputeId={dispute.id} currentUserId={tx.seller_id} currentUserRole="seller" />
         </div>
       )}
 

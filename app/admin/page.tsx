@@ -10,7 +10,6 @@ import { formatNaira } from '@/lib/formatters';
 import { Navbar } from '@/components/layout/Navbar';
 import { Footer } from '@/components/layout/Footer';
 import { TrustBadge } from '@/components/trust/TrustBadge';
-import { DisputeThread } from '@/components/dispute/DisputeThread';
 import {
   ShieldAlert,
   CheckCircle2,
@@ -1222,11 +1221,6 @@ function AdminContent() {
                               </button>
                             </div>
                           </div>
-
-                          {/* DISPUTE THREAD PANEL FOR ADMIN */}
-                          <div className="pt-3">
-                            <DisputeThread disputeId={d.id} currentUserId={user?.id || 'usr_admin_ecobank_03'} currentUserRole="admin" />
-                          </div>
                         </div>
                       ) : (
                         <div className="space-y-4 pt-4 border-t border-slate-200">
@@ -1237,13 +1231,12 @@ function AdminContent() {
                               <span className="text-slate-700 font-normal">{d.resolution_note || 'Resolved by Compliance Auditor'}</span>
                             </div>
                           </div>
-                          <DisputeThread disputeId={d.id} currentUserId={user?.id || 'usr_admin_ecobank_03'} currentUserRole="admin" />
                         </div>
                       )}
-                      </div>
-                    )}
-                  </div>
-                );
+                        </div>
+                      )}
+                    </div>
+                  );
                 })
               )}
             </div>
