@@ -1,12 +1,16 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { ServerDb } from '@/lib/db/serverDb';
+import { mockStore } from '@/lib/mock/store';
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const { transaction_id, logistics, tracking_id } = body;
 
-    const tx = await ServerDb.getTransactionById(transaction_id);
+    let tx = (await ServerDb.getTransactionById(transaction_id)) || mockStore.getTransactionById(transaction_id);
+    if (!tx && transaction_id) {
+      tx = (await ServerDb.getTransactionByCode(transaction_id)) || mockStore.getTransactionByCode(transaction_id);
+    }
     if (!tx) {
       return NextResponse.json({ error: 'Transaction not found' }, { status: 404 });
     }
@@ -23,9 +27,17 @@ export async function POST(request: NextRequest) {
     tx.dispatched_at = now;
     tx.updated_at = now;
     await ServerDb.saveTransaction(tx);
+    mockStore.saveTransaction(tx);
 
     if (tx.buyer_id) {
       await ServerDb.addNotification(
+        tx.buyer_id,
+        'Package Dispatched — Confirm When Received',
+        `${tx.seller_name} dispatched ${tx.title} via ${tx.logistics}. Tracking: ${tx.tracking_id}. USSD Collection PIN: ${tx.ussd_pin}`,
+        'DISPATCH',
+        tx.id
+      );
+      mockStore.addNotification(
         tx.buyer_id,
         'Package Dispatched — Confirm When Received',
         `${tx.seller_name} dispatched ${tx.title} via ${tx.logistics}. Tracking: ${tx.tracking_id}. USSD Collection PIN: ${tx.ussd_pin}`,
@@ -36,6 +48,13 @@ export async function POST(request: NextRequest) {
 
     // Also notify seller that dispatch was recorded
     await ServerDb.addNotification(
+      tx.seller_id,
+      'Dispatch Confirmed — Awaiting Buyer',
+      `${tx.title} (${tx.code}) marked as dispatched. Escrow funds release pending buyer confirmation.`,
+      'DISPATCH',
+      tx.id
+    );
+    mockStore.addNotification(
       tx.seller_id,
       'Dispatch Confirmed — Awaiting Buyer',
       `${tx.title} (${tx.code}) marked as dispatched. Escrow funds release pending buyer confirmation.`,

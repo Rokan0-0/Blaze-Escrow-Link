@@ -1,12 +1,16 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { ServerDb } from '@/lib/db/serverDb';
+import { mockStore } from '@/lib/mock/store';
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const { transaction_id, buyer_id, payment_method } = body;
 
-    const tx = await ServerDb.getTransactionById(transaction_id);
+    let tx = (await ServerDb.getTransactionById(transaction_id)) || mockStore.getTransactionById(transaction_id);
+    if (!tx && transaction_id) {
+      tx = (await ServerDb.getTransactionByCode(transaction_id)) || mockStore.getTransactionByCode(transaction_id);
+    }
     if (!tx) {
       return NextResponse.json({ error: 'Transaction not found' }, { status: 404 });
     }
@@ -24,12 +28,25 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'buyer_id is required to pay.' }, { status: 400 });
     }
 
-    const buyer = await ServerDb.getProfileById(buyer_id);
+    let buyer = (await ServerDb.getProfileById(buyer_id)) || mockStore.getProfileById(buyer_id);
     if (!buyer) {
-      return NextResponse.json(
-        { error: 'Buyer profile not found. Please sign out and sign back in.' },
-        { status: 404 }
-      );
+      buyer = {
+        id: buyer_id,
+        full_name: 'Buyer User',
+        phone: '+2348000000002',
+        role: 'buyer',
+        trust_score: 50,
+        trust_tier: 'Silver',
+        completed_trades: 0,
+        disputed_trades: 0,
+        total_volume: 0,
+        ecobank_linked: true,
+        credit_limit: 5000000,
+        simulated_balance: 10000000,
+        created_at: new Date().toISOString(),
+      };
+      await ServerDb.saveProfile(buyer);
+      mockStore.saveProfile(buyer);
     }
 
     if (payment_method === 'WALLET' && buyer.simulated_balance < tx.amount) {
@@ -39,6 +56,7 @@ export async function POST(request: NextRequest) {
     if (payment_method === 'WALLET') {
       buyer.simulated_balance -= tx.amount;
       await ServerDb.saveProfile(buyer);
+      mockStore.saveProfile(buyer);
     }
 
     const now = new Date().toISOString();
@@ -48,6 +66,7 @@ export async function POST(request: NextRequest) {
     tx.payment_method = payment_method || 'WALLET';
     tx.updated_at = now;
     await ServerDb.saveTransaction(tx);
+    mockStore.saveTransaction(tx);
 
     // Notifications
     await ServerDb.addNotification(
@@ -57,7 +76,22 @@ export async function POST(request: NextRequest) {
       'PAYMENT',
       tx.id
     );
+    mockStore.addNotification(
+      tx.seller_id,
+      'Payment Locked in Escrow Vault',
+      `${buyer.full_name} paid ₦${(tx.amount / 100).toLocaleString()} for ${tx.code}. Escrow lock active.`,
+      'PAYMENT',
+      tx.id
+    );
+
     await ServerDb.addNotification(
+      buyer.id,
+      'Escrow Payment Locked',
+      `Payment of ₦${(tx.amount / 100).toLocaleString()} for ${tx.code} is held safely in Ecobank Escrow Vault.`,
+      'PAYMENT',
+      tx.id
+    );
+    mockStore.addNotification(
       buyer.id,
       'Escrow Payment Locked',
       `Payment of ₦${(tx.amount / 100).toLocaleString()} for ${tx.code} is held safely in Ecobank Escrow Vault.`,

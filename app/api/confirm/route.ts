@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { ServerDb } from '@/lib/db/serverDb';
+import { mockStore } from '@/lib/mock/store';
 import { updateTrustScore } from '@/lib/trust/scoreEngine';
 
 export async function POST(request: NextRequest) {
@@ -7,7 +8,10 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { transaction_id, buyer_id } = body;
 
-    const tx = await ServerDb.getTransactionById(transaction_id);
+    let tx = (await ServerDb.getTransactionById(transaction_id)) || mockStore.getTransactionById(transaction_id);
+    if (!tx && transaction_id) {
+      tx = (await ServerDb.getTransactionByCode(transaction_id)) || mockStore.getTransactionByCode(transaction_id);
+    }
     if (!tx) {
       return NextResponse.json({ error: 'Transaction not found' }, { status: 404 });
     }
@@ -32,22 +36,25 @@ export async function POST(request: NextRequest) {
     tx.released_at = now;
     tx.updated_at = now;
     await ServerDb.saveTransaction(tx);
+    mockStore.saveTransaction(tx);
 
-    const seller = await ServerDb.getProfileById(tx.seller_id);
+    let seller = (await ServerDb.getProfileById(tx.seller_id)) || mockStore.getProfileById(tx.seller_id);
     if (seller) {
       seller.simulated_balance += tx.net_amount;
       seller.completed_trades += 1;
       seller.total_volume += tx.amount;
       await ServerDb.saveProfile(seller);
+      mockStore.saveProfile(seller);
       await updateTrustScore(seller.id, 3, 'Completed Escrow Trade', tx.id);
     }
 
     if (tx.buyer_id) {
-      const buyer = await ServerDb.getProfileById(tx.buyer_id);
+      let buyer = (await ServerDb.getProfileById(tx.buyer_id)) || mockStore.getProfileById(tx.buyer_id);
       if (buyer) {
         buyer.completed_trades += 1;
         buyer.total_volume += tx.amount;
         await ServerDb.saveProfile(buyer);
+        mockStore.saveProfile(buyer);
         await updateTrustScore(buyer.id, 2, 'Verified Handshake', tx.id);
       }
     }
@@ -59,9 +66,23 @@ export async function POST(request: NextRequest) {
       'RELEASE',
       tx.id
     );
+    mockStore.addNotification(
+      tx.seller_id,
+      'Escrow Funds Released',
+      `₦${(tx.net_amount / 100).toLocaleString()} credited to your wallet balance for ${tx.code}.`,
+      'RELEASE',
+      tx.id
+    );
 
     if (tx.buyer_id) {
       await ServerDb.addNotification(
+        tx.buyer_id,
+        'Trade Completed',
+        `Order ${tx.code} is marked complete. Thank you for using Blaze Escrow!`,
+        'CONFIRMATION',
+        tx.id
+      );
+      mockStore.addNotification(
         tx.buyer_id,
         'Trade Completed',
         `Order ${tx.code} is marked complete. Thank you for using Blaze Escrow!`,

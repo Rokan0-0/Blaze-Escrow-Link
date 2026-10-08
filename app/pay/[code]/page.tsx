@@ -237,8 +237,15 @@ export default function EscrowPaymentPage() {
     return <LoadingScreen message="Loading Escrow Contract..." />;
   }
 
-  const isSeller = !!user && user.id === tx.seller_id;
-  const isBuyer = !!user && !!tx.buyer_id && user.id === tx.buyer_id;
+  const isSeller =
+    !!user &&
+    (user.id === tx.seller_id ||
+      (sellerProfile && user.id === sellerProfile.id) ||
+      (!!user.phone && !!sellerProfile?.phone && user.phone === sellerProfile.phone));
+  const isBuyer =
+    !!user &&
+    ((!!tx.buyer_id && user.id === tx.buyer_id) ||
+      (!!tx.buyer_name && user.full_name === tx.buyer_name));
   const isAdmin = !!user && user.role === 'admin';
   const isPotentialBuyer = !!user && !isSeller && tx.state === 'CREATED';
   const isGuest = !user;
