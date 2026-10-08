@@ -241,7 +241,7 @@ export default function DashboardPage() {
       });
       const data = await res.json();
 
-      if (data.success && data.transaction) {
+      if (res.ok && data.success && data.transaction) {
         setGeneratedLink(data.transaction);
         setActiveShareTx(data.transaction);
         setIsGeneratorOpen(false);
@@ -252,6 +252,8 @@ export default function DashboardPage() {
         try {
           confetti({ particleCount: 60, spread: 50, origin: { y: 0.7 } });
         } catch (err) {}
+      } else {
+        throw new Error(data?.error || 'Server error creating transaction');
       }
     } catch (err) {
       const fallbackTx = mockStore.createEscrowLink({

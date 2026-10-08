@@ -13,6 +13,7 @@ import { Footer } from '@/components/layout/Footer';
 import { StateProgressBar } from '@/components/escrow/StateProgressBar';
 import { TrustBadge } from '@/components/trust/TrustBadge';
 import { LoadingScreen } from '@/components/ui/LoadingScreen';
+import { SellerDisputeBanner } from '@/components/dispute/SellerDisputeBanner';
 import confetti from 'canvas-confetti';
 import {
   ShieldCheck,
@@ -786,10 +787,13 @@ export default function EscrowPaymentPage() {
             )}
 
             {/* DISPUTED and Dispute Flow states */}
-            {['DISPUTED', 'AWAITING_RETURN', 'RETURN_DISPATCHED', 'RETURN_CONFIRMED', 'DAMAGE_CLAIMED', 'PARTIAL_REFUND', 'REFUNDED'].includes(tx.state) && dispute && (
+            {['DISPUTED', 'AWAITING_RETURN', 'RETURN_DISPATCHED', 'RETURN_CONFIRMED', 'DAMAGE_CLAIMED', 'PARTIAL_REFUND', 'REFUNDED'].includes(tx.state) && (
               <div className="space-y-4">
+                {isSeller && <SellerDisputeBanner tx={tx} onUpdate={loadData} />}
+
                 {/* Dispute Summary Panel */}
-                <div className="bg-white border border-rose-200 rounded-3xl p-4 sm:p-6 shadow-2xs space-y-4">
+                {dispute && (
+                  <div className="bg-white border border-rose-200 rounded-3xl p-4 sm:p-6 shadow-2xs space-y-4">
                   <div className="flex items-center justify-between">
                     <h3 className="font-bold text-rose-700 text-xs sm:text-sm uppercase tracking-wider flex items-center gap-2">
                       <AlertTriangle className="w-4 h-4" /> Dispute Active — Protection Window
@@ -987,6 +991,7 @@ export default function EscrowPaymentPage() {
                     </div>
                   )}
                 </div>
+                )}
               </div>
             )}
 

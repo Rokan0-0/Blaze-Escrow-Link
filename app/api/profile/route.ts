@@ -2,11 +2,18 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { ServerDb } from '@/lib/db/serverDb';
 import { Profile } from '@/lib/mock/types';
 
-// GET /api/profile?user_id=xxx
+// GET /api/profile?user_id=xxx OR /api/profile?all=true
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const userId = searchParams.get('user_id');
+    const all = searchParams.get('all');
+
+    if (all === 'true') {
+      const profiles = await ServerDb.getProfiles();
+      return NextResponse.json({ profiles });
+    }
+
     if (!userId) {
       return NextResponse.json({ error: 'user_id required' }, { status: 400 });
     }

@@ -275,18 +275,18 @@ export function SellerDisputeBanner({ tx, onUpdate }: SellerDisputeBannerProps) 
               }`}
             >
               <div className="flex items-center justify-between">
-                <span className="font-bold text-xs text-slate-900">3. Contest Claim</span>
+                <span className="font-bold text-xs text-slate-900">3. Contest & File Appeal</span>
                 <ShieldAlert className={`w-4 h-4 ${selectedOption === 'CONTESTED' ? 'text-rose-600' : 'text-slate-300'}`} />
               </div>
               <p className="text-[11px] text-slate-500 leading-tight">
-                Disagree with claim. Provide counter-evidence for admin review.
+                Disagree with claim. Submit counter-appeal statement & evidence photos.
               </p>
             </button>
           </div>
 
           {/* Statement Text Area */}
           <div className="space-y-1.5">
-            <label className="block text-xs font-bold text-slate-700">Your Response Statement / Counter Note</label>
+            <label className="block text-xs font-bold text-slate-700">Your Counter-Appeal Statement / Response Note</label>
             <textarea
               rows={3}
               required
@@ -294,7 +294,7 @@ export function SellerDisputeBanner({ tx, onUpdate }: SellerDisputeBannerProps) 
               onChange={(e) => setResponseText(e.target.value)}
               placeholder={
                 selectedOption === 'CONTESTED'
-                  ? 'Explain why the item was fully functional at dispatch...'
+                  ? 'State your counter-appeal argument and explain why the claim should be dismissed...'
                   : 'Add notes for the buyer and compliance team...'
               }
               className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-3 text-xs text-slate-900 focus:outline-none focus:border-blue-500"
@@ -304,7 +304,7 @@ export function SellerDisputeBanner({ tx, onUpdate }: SellerDisputeBannerProps) 
           {/* Counter Evidence File Upload (Required if Contested) */}
           {selectedOption === 'CONTESTED' && (
             <div className="space-y-2 bg-slate-50 border border-slate-200 rounded-2xl p-3.5 text-xs">
-              <label className="block font-bold text-slate-700">Upload Counter-Evidence Photos (Max 3 files)</label>
+              <label className="block font-bold text-slate-700">Upload Counter-Appeal Photo Evidence (Max 3 files)</label>
               <div className="flex items-center gap-3">
                 <input
                   type="file"
@@ -327,14 +327,14 @@ export function SellerDisputeBanner({ tx, onUpdate }: SellerDisputeBannerProps) 
 
           <div className="flex items-center justify-between pt-1">
             <span className="text-[11px] text-slate-500 italic">
-              {hoursLeft > 0 ? `Response window closes in ${hoursLeft} hours.` : 'Response time elapsed. Defaults to admin ruling.'}
+              {hoursLeft > 0 ? `Appeal response window closes in ${hoursLeft} hours.` : 'Response time elapsed. Defaults to admin ruling.'}
             </span>
             <button
               type="submit"
               disabled={isSubmitting || !responseText.trim()}
               className="bg-[#006B3F] hover:bg-[#005432] text-white font-bold px-6 py-2.5 rounded-2xl text-xs transition-all shadow-md disabled:opacity-50"
             >
-              {isSubmitting ? 'Submitting...' : 'Submit Response'}
+              {isSubmitting ? 'Submitting Appeal...' : selectedOption === 'CONTESTED' ? 'Submit Counter-Appeal' : 'Submit Response'}
             </button>
           </div>
         </form>

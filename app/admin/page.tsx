@@ -144,23 +144,35 @@ function AdminContent() {
 
   const loadData = async () => {
     try {
-      const [txRes, dispRes] = await Promise.all([
+      const [txRes, dispRes, profRes] = await Promise.all([
         fetch('/api/transactions'),
         fetch('/api/disputes'),
+        fetch('/api/profile?all=true'),
       ]);
       const txData = await txRes.json();
       const dispData = await dispRes.json();
+      const profData = await profRes.json();
+
       if (txData.transactions) setTransactions(txData.transactions);
       else setTransactions(mockStore.getAllTransactions());
 
       if (dispData.disputes) setDisputes(dispData.disputes);
       else setDisputes(mockStore.getAllDisputes());
+
+      if (profData.profiles && profData.profiles.length > 0) {
+        const map = new Map<string, Profile>();
+        mockStore.getAllProfiles().forEach((p) => map.set(p.id, p));
+        profData.profiles.forEach((p: Profile) => map.set(p.id, p));
+        setProfiles(Array.from(map.values()));
+      } else {
+        setProfiles(mockStore.getAllProfiles());
+      }
     } catch {
       setTransactions(mockStore.getAllTransactions());
       setDisputes(mockStore.getAllDisputes());
+      setProfiles(mockStore.getAllProfiles());
     }
 
-    setProfiles(mockStore.getAllProfiles());
     setWithdrawals(mockStore.getAllWithdrawals());
   };
 
@@ -651,8 +663,12 @@ function AdminContent() {
                   const buyerId = tx?.buyer_id || d.raised_by;
                   const sellerId = tx?.seller_id;
 
-                  let buyer = (buyerId ? profiles.find((p) => p.id === buyerId) : undefined) || mockStore.getProfileById(buyerId || '');
-                  let seller = (sellerId ? profiles.find((p) => p.id === sellerId) : undefined) || mockStore.getProfileById(sellerId || '');
+                  let buyer = (buyerId ? profiles.find((p) => p.id === buyerId) : undefined) ||
+                    profiles.find((p) => tx?.buyer_name && p.full_name?.toLowerCase().trim() === tx.buyer_name.toLowerCase().trim()) ||
+                    mockStore.getProfileById(buyerId || '');
+                  let seller = (sellerId ? profiles.find((p) => p.id === sellerId) : undefined) ||
+                    profiles.find((p) => tx?.seller_name && p.full_name?.toLowerCase().trim() === tx.seller_name.toLowerCase().trim()) ||
+                    mockStore.getProfileById(sellerId || '');
 
                   if (!buyer) {
                     if (buyerId === MOCK_BUYER.id || tx?.buyer_name?.includes('Tunde') || d.raised_by === MOCK_BUYER.id) {
@@ -660,8 +676,8 @@ function AdminContent() {
                     } else {
                       buyer = {
                         id: buyerId || 'usr_buyer_default',
-                        full_name: tx?.buyer_name || 'Tunde Bakare',
-                        phone: '+2348000000002',
+                        full_name: tx?.buyer_name || 'Buyer Party',
+                        phone: buyerId && buyerId.startsWith('+') ? buyerId : 'Phone verified',
                         role: 'buyer',
                         trust_score: 65,
                         trust_tier: 'Gold',
@@ -682,8 +698,8 @@ function AdminContent() {
                     } else {
                       seller = {
                         id: sellerId || 'usr_seller_default',
-                        full_name: tx?.seller_name || 'Amina Bello',
-                        phone: '+2348000000001',
+                        full_name: tx?.seller_name || 'Seller Party',
+                        phone: sellerId && sellerId.startsWith('+') ? sellerId : 'Phone verified',
                         role: 'seller',
                         trust_score: 72,
                         trust_tier: 'Gold',
